@@ -1,0 +1,192 @@
+@startuml api for cart updation
+' skinparam linetype ortho
+title Coffee Shop Chat Bot - Class Diagram
+ 
+package "Application Server"{
+    class FastMCP <<main.py>>{
+        -mcp: FastMCP
+    }
+}
+ 
+package "routers" {
+    class MCPRouter <<src/routers/router.py>>{
+        - router.add_tool(get_order_tool)
+        - router.add_tool(place_order_tool)
+        - router.add_resource(get_menu_resource)
+        - router.add_resource(get_shop_details)
+        - router.add_prompt(order_assistant_prompt)
+        - router.add_prompt(order_status_prompt)
+    }
+}
+  
+
+package "tools"{
+    class Tool <<src/tools/tool.py>>{
+        -repository: ChatBotRepository()
+        +place_order_tool(item_id: list, count: list)
+        +get_order_tool(order_id: int)
+    }
+}
+
+package "resources"{
+    class Resource <<src/resources/resources.py>>{
+        -repository: ChatBotRepository()
+        +get_menu_resource()
+        +get_shop_details()
+    }
+}
+
+package "prompts"{
+    class Prompt <<src/prompts/prompts.py>>{
+        +order_assistant_prompt()
+        +order_status_prompt()
+    }
+}
+
+package "repositories" {
+    class ChatBotRepository <<src/repositories/repository.py>>{
+        -db_instance: Database()
+        +validate_item(item_id: int)
+        +validate_order(order_id: int)
+        +get_menu_repository()
+        +place_order_repository(item_id, count, total_amount)
+        +get_order_detail_repository(order_id)
+    }
+
+ 
+    class Database <<src/repositories/database.py>>{
+        +SessionLocal(): Session
+    }
+
+    
+        class ErrorLog <<src/repositories/error_repository.py>>{
+            -db_instance: Database()
+            + add_errorlog_repository(file_name, function_name, error_message)
+        }
+    
+ 
+    package "schema"{
+        class Customer <<src/repositories/schema/coffee_shop.py>>{
+            +customer_id: int
+            +name: string
+            +phone_number: string
+            +is_active: Bool
+            +created_by: string
+            +created_at: timestamp
+            +updated_by: string
+            +updated_at: timestamp
+        }
+ 
+        class Item <<src/repositories/schema/coffee_shop.py>>{
+            +item_id: int
+            +name: string
+            +price: float
+            +is_active: boolean
+            +created_by: string
+            +created_at: timestamp
+            +updated_by: string
+            +updated_at: timestamp
+        }
+ 
+        class Order <<src/repositories/schema/coffee_shop.py>>{
+            +order_id: int
+            +customer_id: int
+            +total_amount: float
+            +order_status: string
+            +is_active: boolean
+            +created_by: string
+            +created_at: timestamp
+            +updated_by: string
+            +updated_at: timestamp
+            --
+            +customer_id: Customer
+        }
+ 
+        class Order_Item <<src/repositories/schema/coffee_shop.py>>{
+            +order_item_id: int
+            +item_id: int
+            +order_id: int
+            +item_count: int
+            +is_active: boolean
+            +created_by: string
+            +created_at: timestamp
+            +updated_by: string
+            +updated_at: timestamp
+            --
+            +item_id: Item
+            +order_id: Order
+        }
+        class Error_Logger <<src/repositories/schema/coffee_shop.py>>{
+            +error_logger_id : int
+            +file_name: string
+            +folder_name: string 
+            +error_message: string
+            +is_active: boolean
+            +created_by: string
+            +created_at: timestamp
+            +updated_by: string
+            +updated_at: timestamp
+        }
+    }
+   
+}
+
+ 
+package "utilities"{
+    class ErrorLogging <<src/utilities/error_log.py>>{
+        -repository: ErrorLog()
+        +log_error()
+    }
+    package "Exception"{
+        class ErrorCode <<src/utilities/exceptions/error_codes.py>>{
+            +USER_NOT_FOUND: string
+            +DATABASE_ERROR: string
+            +INTERNAL_SERVER_ERROR: string
+            +VALIDATION_ERROR: string
+        }
+ 
+        class HttpStatusCode <<src/utilities/exceptions/http_status.py>>{
+            +OK: integer
+            +CREATED: integer
+            +BAD_REQUEST: integer
+            +NOT_FOUND: integer
+            +INTERNAL_SERVER_ERROR: integer
+        }
+        class Custom_Exception <<src/utilities/exceptions/custom_expection.py>>{
+            +message: string
+            +code: string
+            +status_code: int
+            +errors: List[]
+            +request_id: string
+            --
+            +to_api_response(): JSONResponse
+        }
+    }
+}
+ 
+' 'API & tool Relationships 
+FastMCP --> MCPRouter: sends request to
+MCPRouter --> Tool
+Tool --> ChatBotRepository: calls
+ChatBotRepository --> Database: uses
+ErrorLogging --> ErrorLog
+ErrorLog --> Error_Logger
+
+' prompt& resource
+MCPRouter --> Resource
+Resource --> ChatBotRepository:reads
+MCPRouter --> Prompt
+
+' DAtabase tables
+Order_Item --> Item: uses
+Order_Item --> Order: uses
+Order --> Customer: uses
+ChatBotRepository --> schema: read/writes using
+
+' Exceptions
+Tool --> Custom_Exception: may raise
+Custom_Exception --> HttpStatusCode: uses
+Custom_Exception --> ErrorCode: uses
+MCPRouter --> Custom_Exception: may raise
+' ChatBotRepository --> Custom_Exception: may raise
+@enduml

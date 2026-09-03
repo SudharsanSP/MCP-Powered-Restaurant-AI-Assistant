@@ -1,0 +1,146 @@
+@startuml api for cart updation
+' skinparam linetype ortho
+title Coffee Shop Chat Bot - Class Diagram
+ 
+    class main <<main.py>>{
+        -app: FastAPI()
+        -router: router
+        +custom_exception_handler(request: Request, exc: Custom_Exception)
+        +validation_exception_handler(request: Request, exc: RequestValidationError)
+        +uvicorn.run()
+    }
+
+ 
+package "routers" {
+    class router <<src/routers/router.py>>{
+        -service: ChatBotService()
+        +chat_bot_router(request: UserQuery, customer_id: integer): JSONResponse
+    }
+}
+  
+package "services" {
+    class service <<src/services/service.py>>{
+        -agent: Agent()
+        +chat_bot_service(request, customer_id)
+    }
+}
+
+package "agents"{
+    class agent <<src/agents/agent.py>>{
+        -prompt: Prompt()
+        -tool: Tool()
+        +get_bedrock_client()
+        +create_llm_model()
+        +create_agent_instance(checkpointer)
+        +custom_error_handler(error: Exception)
+        +create_mcp_client()
+        +call_agent(request, customer_id)
+    }
+    class prompt <<src/agents/prompt.py>>{
+        +get_system_prompt()
+    }
+}
+
+
+package "repositories" {
+        class error_repository <<src/repositories/error_repository.py>>{
+            -db_instance: Database()
+            + add_errorlog_repository(file_name, function_name, error_message)
+        }
+ 
+    class database <<src/repositories/database.py>>{
+        +SessionLocal(): Session
+    }
+ 
+    package "schema"{
+        class Error_Logger <<src/repositories/schema/coffee_shop.py>>{
+            +error_logger_id : int
+            +file_name: string
+            +folder_name: string 
+            +error_message: string
+            +is_active: boolean
+            +created_by: string
+            +created_at: timestamp
+            +updated_by: string
+            +updated_at: timestamp
+        }
+    }
+   
+}
+ 
+package "models"{
+    class APIResponse <<src/models/APIResponse.py>>{
+        +data : Optional[any]
+        +errors: List[]
+        +code: int
+        +message: string
+        +request_id: string
+        --
+        +to_dict():dict
+    }
+ 
+    class model <<src/models/model.py>>{
+        +user_query: string
+        +model_response: string
+        +order_id: int
+        +order_items: list
+        +total_amount: float
+        +order_status: string
+        +menu_items: list
+    }
+}
+ 
+package "utilities"{
+    class error_log <<src/utilities/error_log.py>>{
+        -repository: ChatBotRepository()
+        +log_error()
+    }
+
+    package "exceptions"{
+        class error_codes <<src/utilities/exceptions/error_codes.py>>{
+            +USER_NOT_FOUND: string
+            +DATABASE_ERROR: string
+            +INTERNAL_SERVER_ERROR: string
+            +VALIDATION_ERROR: string
+        }
+ 
+        class http_status <<src/utilities/exceptions/http_status.py>>{
+            +OK: integer
+            +CREATED: integer
+            +BAD_REQUEST: integer
+            +NOT_FOUND: integer
+            +INTERNAL_SERVER_ERROR: integer
+        }
+        class custom_expection <<src/utilities/exceptions/custom_expection.py>>{
+            +message: string
+            +code: string
+            +status_code: int
+            +errors: List[]
+            +request_id: string
+            --
+            +to_api_response(): JSONResponse
+        }
+    }
+}
+ 
+' ' Relationships 
+main --> router: sends request to
+router --> service: routes to
+service --> agent: calls
+agent --> prompt: uses 
+error_repository --> database: uses
+error_repository --> Error_Logger: writes to
+error_log --> error_repository
+
+'DTO's
+router --> model: validate using
+router --> APIResponse: converts
+
+' Exceptions
+custom_expection --> http_status: uses
+custom_expection --> error_codes: uses
+router --> custom_expection: may raise
+service --> custom_expection: may raise
+
+
+@enduml

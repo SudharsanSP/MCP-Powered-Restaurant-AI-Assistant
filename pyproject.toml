@@ -1,0 +1,31 @@
+[project]
+name = "coffeebotmcp"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "SudharsanSP", email = "sudharsan377000@gmail.com" }
+]
+requires-python = ">=3.14"
+dependencies = [
+    "fastapi>=0.141.1",
+    "fastmcp>=3.4.7",
+    "langchain>=1.3.18",
+    "langchain-aws>=1.7.4",
+    "langchain-core>=1.6.1",
+    "langchain-mcp-adapters>=0.3.2",
+    "langgraph>=1.2.11",
+    "langgraph-checkpoint-postgres>=3.1.2",
+    "psycopg2>=2.9.12",
+    "pydantic>=2.13.5",
+    "python-dotenv>=1.2.3",
+    "sqlalchemy>=2.0.52",
+    "uvicorn>=0.52.4",
+]
+
+[project.scripts]
+coffeebotmcp = "coffeebotmcp:main"
+
+[build-system]
+requires = ["uv_build>=0.12.7,<0.13.0"]
+build-backend = "uv_build"

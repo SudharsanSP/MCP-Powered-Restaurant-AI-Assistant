@@ -1,0 +1,559 @@
+@startuml chat bot
+!theme plain
+skinparam sequenceMessageAlign center
+skinparam maxMessageSize 300
+skinparam noteBackgroundColor lightyellow
+skinparam noteTextColor black
+
+title Coffee Shop Chat Bot - Sequence Diagram with Exception Flow to User
+
+actor User
+participant "src/main.py\n main.py" as FastMCP
+participant "src/routers/router.py\n FastAPI Router" as Router
+participant "src/tools/tool.py \n Tool" as Tools
+participant "src/resources/resources.py \n Resources" as Resources
+participant "src/prompt/prompt.py \n Prompts" as Prompts
+participant "src/repositories/repository.py \n Repository" as Repository
+participant "src/utilities/error_log.py\n Error Logger" as  ErrorLogger
+participant "src/repositories/error_repository.py \n Error Log Repository" as ErrorLogRepository
+participant "src/migration/migration.py \n Migration" as Migration
+participant "src/repositories/database.py \n Database" as Session 
+participant "src/models/APIResponse.py \n APIResponse" as APIResponse
+participant "src/utilities/exceptions/custom_app_expection.py\n Custom Exception" as CustomException
+participant "src/utilities/exceptions/error_codes.py\n Error Codes" as ErrorCodes
+participant "src/utilities/exceptions/http_status.py\n HTTP Status" as HttpStatus
+
+==imports==
+note over FastMCP
+    **API imports**
+        from fastmcp import FastMCP
+        from routers.router import router
+end note
+
+note over Router
+    **Router imports**
+        from fastmcp import FastMCP
+        from tools.tool import get_menu_tool, get_order_tool, place_order_tool 
+end note
+
+
+note over Tools
+    **Tools imports**
+        from langchain_core.tools import tool
+        from repositories.repository import ChatBotRepository
+        from utilities.error_log import error_logger
+        from routers.router import router
+        import logging
+end note
+
+note over Repository
+    **Repository imports**
+        from typing import Dict
+        from sqlalchemy.orm import Session
+        from sqlalchemy import and_, desc, join
+        from utilities.exceptions.custom_exception import Custom_Exception
+        from utilities.exceptions.error_codes import ErrorCode
+        from utilities.exceptions.http_status import HttpStatusCode
+        from repositories.database import Database
+        from utilities.error_log import error_logger
+        from repositories.error_repository import ErrorLog
+        from repositories.schema.coffee_shop_models import  Order, Order_Item, Item
+end note
+
+note over ErrorLogger
+    **Error Logger imports**
+        from repositories.error_repository import ErrorLog
+end note
+
+note over ErrorLogRepository
+    **Error Log Repository imports**
+        from repositories.database import Database
+        from repositories.schema.coffee_shop_models import Error_Logger
+end note
+
+note over Session
+    **Session imports**
+        from sqlalchemy import create_engine, inspect, text
+        from sqlalchemy.orm import sessionmaker
+        from settings import config
+        from utilities.exceptions.custom_exception import Custom_Exception
+        from utilities.exceptions.error_codes import ErrorCode
+        from utilities.exceptions.http_status import HttpStatusCode
+end note
+
+note over CustomException
+    **CustomException imports**
+        import uuid
+        from typing import List, Optional
+        from models.APIresponse import APIResponse, Error
+end note
+
+
+==API Response ==
+autonumber 2.1
+group __init__ constructor function
+    APIResponse -> APIResponse: The constructor function is called whenever an instance foe calss APIResponse is created
+    APIResponse -> APIResponse: This constructor gets data, errors as optional list of error ,integer code as optional  and string message as optional as inbound parameters
+    APIResponse -> APIResponse: INbound data, errors, code is assigned for respective object's  attributes
+    APIResponse -> APIResponse: A uuid is created, formatted into string data type amd stored in attribute request_id 
+
+    alt if message not None
+        APIResponse -> APIResponse: Attribute message of the object is assigned with inbound message
+    else if no errors & no message
+        APIResponse -> APIResponse: Attribute message of the object is assigned with custom message as Success
+    else if length of errors is 1
+        APIResponse -> APIResponse: Attribute message of the object is assigned with error message in list error
+    end
+end group
+
+group to_dict()
+    APIResponse -> APIResponse: This function is called when an APIResponse object needs to converted into dictionary format
+    alt if data is not empty
+        APIResponse -> APIResponse: Assign the APIResponse objects data in key "data"
+    else if data is empty
+        APIResponse -> APIResponse: Assign data as none  in key "data"
+    end
+    alt if errors is not empty
+        APIResponse -> APIResponse: Iterate over the errors and convert into dictonary using to_dict function and store in key "errors"
+    else if errors in empty
+        APIResponse -> APIResponse: Assign errors as empty list  in key "data"
+    end
+    APIResponse -> APIResponse: Assign inbound objects code in key "Status_code"
+    APIResponse -> APIResponse: Assign inbound objects request_id in key "request_id"
+    APIResponse -> APIResponse: Assign inbound objects message in key "messages"
+end group
+
+==Custom Exception==
+autonumber 2.2
+group __init__ constructor
+    CustomException -> CustomException: This constructor function is called when object is created for class CustomException
+    CustomException -> CustomException: The constructoe gets string message, string code, integer status and List of errors as Optional as inbpound parameter
+    CustomException -> CustomException: Inbound message is assigned for object's message attribute
+    CustomException -> CustomException: Attribute code, status_code is assigned with inbound code and status_code
+    CustomException -> CustomException:  A uuid is created, formatted into string data type amd stored in attribute request_id 
+    CustomException -> CustomException: Object's error attribute is assigned eith inbound errors
+end group
+group to_api_response()
+    CustomException -> CustomException: Returns the instance of class APIResponse with no data, errors and code as attributes for instance creation 
+    CustomException <- CustomException: Refer sequernce nuber 2.1 to 2.7 for instance creation of APIResponse
+end group
+
+
+==Migration==
+autonumber 2.3
+group Migration - __init__ constructor 
+    Migration -> Migration: Create a variable self.db and store instance of Database class
+    Migration -> Session: 
+        Session -> Session: Create a protected variable instance and aassign None
+        group Database - __new__ constructor 
+            alt if cls._instance == None
+                Session -> Session: Call the super() class of __new__ to create new object and store in variable _instance of class cls 
+                Session -> Session: Create a protected variable for class cls as initialized and assign false
+            else 
+                Session -> Session: Return the instance of class cls
+            end 
+        end group
+        group Database - __init__ constructor 
+            alt if initialized == true
+                Session -> Session: If an object for the class Database is already initialized return
+            else 
+                Session -> Session: Create a variable engine for the object and call the function _create_engine
+                group Database _create_engine()
+                    Session -> Session: Create a variable db_url and store the url for database by using the db credentials from settings.py file and return the db_url  
+                end group
+                Session -> Session: Create a variable SessioonLocal and store instance for class Sessionmaker by providing db url for enginne and defining autoflush and autocommit
+                Session -> Session: Assign the variable initialized as True as no other instance  is created for the class Database  
+            end
+        end group 
+    Migration <-- Session: 
+    group create_tables()
+            group Try
+                Migration -> Migration: Using the class Base create the tables in database using the database engine
+            end group
+            group Except
+                Migration -> Migration: If any error raises while creating databse, raise the error
+            end group
+    end group
+end group
+
+==MCP Server==
+autonumber 1.1
+group FastMCP Server
+    FastMCP -> FastMCP: Create an MCP server  with custom name and store it in a variable mcp by assigning mcp = FastMCP("my-server")
+    FastMCP -> FastMCP: Create an instance for class Migration, store in a variable migration
+    FastMCP -> FastMCP: Use the function create_tables()  to create database tables
+    FastMCP -> FastMCP: Attach all the available tools, prompts and resources to the server by using mount
+    FastMCP -> Router
+    group Router
+        Router -> Router: Create a FastMCP object and store in a variable router 
+        Router -> Router: Add all the tools, resources and prompts to the router object, as it makes tools available/expose to server 
+        Tools --> Router
+        Router --> FastMCP
+    end group
+    FastMCP -> FastMCP: Run the server using transport as "streamable-http" this allows the tools to connect via HTTP to the available clients LLM models
+end group
+
+==Tool Definition==
+autonumber 1
+
+group place_order_tool() 
+        Tools -> Tools: Create instance for ChatBotRepository and store in a variable repository
+    group Try
+        Tools -> Tools: This tool place order for customers by providing the required parameters like list of items, ad their count in list and the customer_id
+        Tools -> Tools: Iterate over the list, which stores the item_id and check the presence of item in the menu by using the function validate_item() and calculate the total price of order
+        Tools -> Repository
+        group validate_item(item_id) function
+            Repository-> Repository: Create a variable db_session and store the connection session with database
+            Repository -> Repository: Create a variable  product and assign orm query to validate whether the item asked by the customer is present or not
+            note left
+            **ORM Query**
+                query(Item).filter(Item.item_id == item_id).first()
+            end note
+            Repository -> Repository: Return the product to tools
+        end group
+        Repository --> Tools
+        alt if product not found
+            Tools -> Tools: If item asked by customer is not found in the menu, return the custom message to the LLM
+        else
+            Tools -> Tools: If items present, call the place_order_repository() function in repository to place order with required parameters item_id, count, total_amount and customer_id
+            Tools -> Repository:
+        end
+        group place_order_repository(item_id, count, total_amount, customer_id) 
+            group Try
+                Repository-> Repository: CAll from tools place_order_tool() trigger ths function place_order_repository() to place the order
+                ' activate Repository
+                Repository-> Repository: Create a variable db_session and store the connection session with database
+                Repository <- Session:
+                activate Session
+                    Repository -> Repository: Create a variable customer and call the function get_customer() with parameter customer_id
+                    group get_customer(customer_id)
+                        group Try
+                            Repository-> Repository: Create a variable db_session and store the connection session with database
+                            Repository-> Repository: Create a variable customer and assign the query to get the details of customer with customer_id as in parameter
+                            note left
+                            **ORM Query**
+                                query(Customer).filter(Customer.customer_id == customer_id).first()
+                            end note
+                        end group
+                        group Except as e
+                            Repository-> Repository: Refer the except group of function place_order_repository()
+                        end group
+                        group Finally
+                            Repository-> Repository: Close the database connection session, which is stored in variable db_session
+                        end group
+                    end group
+                    Repository-> Repository: Create a variable new_order and add the total_amount, customer_id and the customer name  of the order and then perform flush to create instance  of new record in orders table 
+                    note left
+                    **ORM Query**
+                        new_order = Order(
+                            customer_id = customer_id,
+                            total_amount = total_amount,
+                            created_by = customer.name
+                        )
+                    end note 
+                    Repository-> Repository: Iterate over the list item_id and count to add the each item of the order with its order_id to create instance for  class Order_Item table definition
+                    note left
+                    **ORM Query**
+                        new_order_items = Order_Item(
+                            order_id = order.order_id,
+                            item_id =  item,
+                            item_count = cnt,
+                        )
+                    end note 
+                    Repository-> Repository: After each iteration, add all the orm object to list order_item and do commit after final iteration to add records in database tables
+                    Repository -> Session:
+                deactivate Session 
+                Repository-> Repository: Return the order_id & total amount with custom message to tool place_order_tool()
+                Repository--> Tools:
+                ' deactivate Repository
+            end group
+            group Except as e
+                    Repository -> Repository: Call the utility function error_logger() by sending the parameters file_name, function_name and error_message 'e' to create an error log in database
+                    Repository -> ErrorLogger: Any error raise, triggers the function error_logger() to create db record for error
+                    group error_logger(file_name, function_name, error_message)
+                        activate ErrorLogger
+                        ErrorLogger -> ErrorLogger: create an instance for class ErrorLog and store in a variable repository
+                        ErrorLogger -> ErrorLogger: Passes the incoming parameters to add_errorlog_repository function in error_repository to create a db record for error
+                        ErrorLogger -> ErrorLogRepository:
+                        activate ErrorLogRepository
+                    end group
+                    group add_errorlog_repository(file_name, function_name, error_message)
+                        ErrorLogRepository -> ErrorLogRepository: create a variable db_instance and store the instance for class Database
+                        ErrorLogRepository -> ErrorLogRepository: Create a variable db_session and store the database seesion
+                        ErrorLogRepository -> ErrorLogRepository: create a variable error and assign the values to be insrted into database as instance for class Error_Logger and perform add & commit to save the changes in database
+                        ErrorLogRepository -> ErrorLogRepository: Return the success message as True to error_logger function
+                        ErrorLogRepository --> ErrorLogger
+                        deactivate ErrorLogRepository
+                    end group
+                    ErrorLogger --> Repository:  Return the success message from function add_errorlog_repository to router 
+                    deactivate ErrorLogger
+                        Repository -> Repository: Create Custom Exception instance with assigning error message to message,error code to variable code and stsatus code to variable status_code 
+                        Repository -> CustomException: Constructs CustomException with an error message and status code 
+                        activate CustomException
+                            CustomException -> CustomException: assigns the error message in variable message
+                            CustomException -> ErrorCodes : Maps the errror code "INTERNAL_SERVER_ERROR"
+                            ErrorCodes --> CustomException: Returns the error code "InternalServerErrorCode"
+                            CustomException -> HttpStatus : Map status code alligns with the error cod "INTERNAL_SERVER_ERROR" 
+                            HttpStatus --> CustomException: Returns the status code 500
+                            CustomException -> CustomException: variable request_id generates and store a uuid id and store in strong format 
+                            CustomException --> Repository: Raise Custom Exception object
+                        deactivate CustomException
+                        Repository -->  Tools:  Raise Custom Exception object
+                        Tools --> User: Raise Custom Exception object
+                        note left
+                            **HTTP 500 INTERNAL SERVER ERROR**
+                                {
+                                    "data": null,
+                                    "errors": [{
+                                        "code": "DatabaseErrorErrorCode",
+                                        "message": "Repository error: ... "}]
+                                    "status_code": 500,
+                                    "request_id": "550e8400-e29b-41d4-a716-446655440000",
+                                    "message": "Repository error: ... "
+                                }
+                        end note
+            end group
+            group Finally
+                Repository-> Repository: Close the database connection session, which is stored in variable db_session
+            end group
+        end group
+    end group
+    group Except as e
+        Tools -> Tools: Refer sequence numbe 25 to 34 for logging the error in database
+        Tools -> Tools: Create Custom Exception instance with assigning error message to message,error code to variable code and stsatus code to variable status_code 
+        Tools -> CustomException: Constructs CustomException with an error message and status code 
+        activate CustomException
+        CustomException -> CustomException: assigns the error message in variable message
+        CustomException -> ErrorCodes : Maps the errror code "INTERNAL_SERVER_ERROR"
+        ErrorCodes --> CustomException: Returns the error code "InternalServerErrorCode"
+        CustomException -> HttpStatus : Map status code alligns with the error cod "INTERNAL_SERVER_ERROR" 
+        HttpStatus --> CustomException: Returns the status code 500
+        CustomException -> CustomException: variable request_id generates and store a uuid id and store in strong format 
+        CustomException --> Tools: Raise Custom Exception object
+        deactivate CustomException
+        Tools --> User: Raise Custom Exception object
+        note left
+        **HTTP 500 INTERNAL SERVER ERROR**
+        {
+            "data": null,
+            "errors": [{
+                "code": "DatabaseErrorErrorCode",
+                "message": "Repository error: ... "}]
+            "status_code": 500,
+            "request_id": "550e8400-e29b-41d4-a716-446655440000",
+            "message": "get menu tool: ... "
+        }
+        end note 
+    end group
+        Tools -> Tools: The return message with data is sent to LLM, it process the input and responses the users requests 
+    
+end group
+
+group get_order_tool() 
+    group Try 
+        Tools -> Tools: This tool get_order_tool() gets the status of the order to the customer
+        Tools -> Tools: Call the function get_order_detail_repository() in repositories file to get the status or the order by sending thr customer_id as parameter and store in variable result
+        Tools -> Repository:
+        ' activate Repository
+            group get_order_detail_repository(self, customer_id) 
+                group Try
+                    Repository-> Repository: CAll from tool get_order_tool() trigger the function get_order_detail_repository() to get status of the order
+                    Repository-> Repository: Create a variable customer and call the function get_customer() by sending customer_id as parameter
+                    group get_customer(customer_id) 
+                        group Try
+                            Repository-> Repository: Create a variable customer and assign the query to get the details of customer with customer_id as in parameter
+                            note left
+                            **ORM Query**
+                                query(Customer).filter(Customer.customer_id == customer_id)
+                                .first()
+                            end note
+                            Repository-> Repository: Return the customer sql object
+                        end group
+                        group Except as e
+                            Repository-> Repository: Refer the except group of function place_order_repository()
+                        end group
+                        group Finally
+                            Repository-> Repository: Close the database connection session, which is stored in variable db_session
+                        end group
+                    end group
+                    Repository-> Repository: Create a variable order and call the function get_order by sending the parameter customer_id
+                    group get_order(customer_id)
+                        group Try
+                            Repository-> Repository: Create a variable order and assign the query to get the details of order with customer_id as in parameter
+                            note left
+                            **ORM Query**
+                                query(Order).filter(Order.customer_id == customer_id)
+                                .order_by(desc(Order.created_at)).first()
+                            end note
+                            Repository-> Repository: Return the order sql object
+                        end group
+                        group Except as e
+                            Repository-> Repository: Refer the except group of function place_order_repository()
+                        end group
+                        group Finally
+                            Repository-> Repository: Close the database connection session, which is stored in variable db_session
+                        end group
+                    end group
+                    Repository-> Repository: Create a variable order_details and call the function get_order_details() to get the sql_object of the order record with order_id
+                    alt if no order available
+                        Repository-> Repository: if there is no sql_object found with  order_id, return a custom message about no order found on the give order_id to the tool get_order_tool().
+                    end
+                    group get_order_details(order_id)
+                        group Try
+                            Repository-> Repository: Create a variable order_details and assign the query to get the details of order with order_id as in parameter
+                            note left
+                            **ORM Query**
+                                db_session.query(Order_Item)
+                                .filter(Order_Item.order_id == order_id)
+                                .all()
+                            end note
+                            Repository-> Repository: Return the order_details sql object
+                        end group
+                        group Except as e
+                            Repository-> Repository: Refer the except group of function place_order_repository()
+                        end group
+                        group Finally
+                            Repository-> Repository: Close the database connection session, which is stored in variable db_session
+                        end group
+                    end group
+                    Repository-> Repository: Iterate over the sql object in variable in order_details and store the data like item_id, namae and count indictionary and append it to list 
+                    Repository-> Repository: If sql_object for order_id found , return the status of the order, total amount and list of order item detail of order with custom message to tool  get_order_tool() 
+                    Repository--> Tools:
+                end group
+                group Except as e
+                    Repository-> Repository: Refer sequence number 24 to 45 for error handling and logging the error in repository function get_order_detail_repository
+                end group
+                group Finally
+                    Repository-> Repository: Close the database connection session, which is stored in variable db_session
+                end group
+            end group
+        Tools -> Tools: The return message with order status is sent to LLM, it process the input and responses the users requests 
+    end group
+    group Except as e
+        Tools -> Tools: Refer sequence number 24 to 45 for error logging and exception handling in tool
+    end group
+end group
+
+
+==Resource Definition==
+group get_menu_resource()
+    group Try 
+        Tools -> Tools: This resource gets the list of items, whenever customers ask for menu
+        Tools -> Tools: Create instance for ChatBotRepository and store in a variable repository
+        Tools -> Tools: Call the function get_menu_repository() in repositories file to access the db and get all the items in the menu 
+        Tools -> Repository:
+        ' activate Repository
+            group get_menu_repository() 
+                group Try 
+                    Repository-> Repository: CAll from tools get_menu_tool() trigger ths function get_menu_repository() to get the items in menu
+                    Repository-> Repository: Create instance for Database class and store it in a variable db_instance globally
+                    Repository-> Repository: Create a variable db_session and store the connection session with database
+                    Repository-> Repository: Refer sequence number 2.5 to 2.13 for instance creation of Database and session and Session creation using database engine
+                    Repository <- Session:
+                    activate Session
+                        Repository-> Repository: Create a variable items to query all the records in items table & a list menu
+                        note left
+                        **ORM Query**
+                            items = query(Item).all()
+                        end note 
+                        Repository-> Repository: Iterate over the items, which stores the sql object and store the details in dictionary and append it to the list menu
+                        Repository -> Session:
+                    deactivate Session 
+                    Repository-> Repository: Coonvert the sql object for menu items  to dictionary  with custom message and return to get_menu_tool()
+                    Repository--> Tools:
+                    ' deactivate Repository
+                end group
+                group Except as e
+                    Repository -> Repository: Call the utility function error_logger() by sending the parameters file_name, function_name and error_message 'e' to create an error log in database
+                    Repository -> ErrorLogger: Any error raise, triggers the function error_logger() to create db record for error
+                    activate ErrorLogger
+                    ErrorLogger -> ErrorLogger: create an instance for class ErrorLog and store in a variable repository
+                    ErrorLogger -> ErrorLogger: Passes the incoming parameters to add_errorlog_repository function in error_repository to create a db record for error
+                    ErrorLogger -> ErrorLogRepository:
+                    activate ErrorLogRepository
+                    ErrorLogRepository -> ErrorLogRepository: create a variable db_instance and store the instance for class Database
+                    ErrorLogRepository -> ErrorLogRepository: Create a variable db_session and store the database seesion
+                    ErrorLogRepository -> ErrorLogRepository: create a variable error and assign the values to be insrted into database as instance for class Error_Logger and perform add & commit to save the changes in database
+                    ErrorLogRepository -> ErrorLogRepository: Return the success message as True to error_logger function
+                    ErrorLogRepository --> ErrorLogger
+                    deactivate ErrorLogRepository
+                    ErrorLogger --> Repository:  Return the success message from function add_errorlog_repository to router 
+                    deactivate ErrorLogger
+                    Repository -> Repository: Create Custom Exception instance with assigning error message to message,error code to variable code and stsatus code to variable status_code 
+                        Repository -> CustomException: Constructs CustomException with an error message and status code 
+                        activate CustomException
+                            CustomException -> CustomException: assigns the error message in variable message
+                            CustomException -> ErrorCodes : Maps the errror code "INTERNAL_SERVER_ERROR"
+                            ErrorCodes --> CustomException: Returns the error code "InternalServerErrorCode"
+                            CustomException -> HttpStatus : Map status code alligns with the error cod "INTERNAL_SERVER_ERROR" 
+                            HttpStatus --> CustomException: Returns the status code 500
+                            CustomException -> CustomException: variable request_id generates and store a uuid id and store in strong format 
+                            CustomException --> Repository: Raise Custom Exception object
+                        deactivate CustomException
+                        Repository -->  Resources:  Raise Custom Exception object
+                        Resources --> User: Raise Custom Exception object
+                        note left
+                            **HTTP 500 INTERNAL SERVER ERROR**
+                                {
+                                    "data": null,
+                                    "errors": [{
+                                        "code": "DatabaseErrorErrorCode",
+                                        "message": "Repository error: ... "}]
+                                    "status_code": 500,
+                                    "request_id": "550e8400-e29b-41d4-a716-446655440000",
+                                    "message": "Repository error: ... "
+                                }
+                        end note   
+                end group
+                group Finally
+                    Repository-> Repository: Close the database connection session, which is stored in variable db_session
+                end group
+            end group
+        Tools -> Tools: The return message with data is sent to LLM, it process the input and responses the users requests 
+    end group
+    group Except as e
+        Tools -> Tools: Refer sequence numbe 24 to 34 for logging the error in database
+        Tools -> Tools: Create Custom Exception instance with assigning error message to message,error code to variable code and stsatus code to variable status_code 
+        Tools -> CustomException: Constructs CustomException with an error message and status code 
+        activate CustomException
+        CustomException -> CustomException: assigns the error message in variable message
+        CustomException -> ErrorCodes : Maps the errror code "INTERNAL_SERVER_ERROR"
+        ErrorCodes --> CustomException: Returns the error code "InternalServerErrorCode"
+        CustomException -> HttpStatus : Map status code alligns with the error cod "INTERNAL_SERVER_ERROR" 
+        HttpStatus --> CustomException: Returns the status code 500
+        CustomException -> CustomException: variable request_id generates and store a uuid id and store in strong format 
+        CustomException --> Tools: Raise Custom Exception object
+        deactivate CustomException
+        Tools --> User: Raise Custom Exception object
+        note left
+        **HTTP 500 INTERNAL SERVER ERROR**
+        {
+            "data": null,
+            "errors": [{
+                "code": "DatabaseErrorErrorCode",
+                "message": "Repository error: ... "}]
+            "status_code": 500,
+            "request_id": "550e8400-e29b-41d4-a716-446655440000",
+            "message": "get menu tool: ... "
+        }
+        end note   
+    end group
+end group
+
+group get_shop_details() resource
+    Resources -> Resources: Wenever the customer needs the details of the shop, this resource is used
+    Resources -> Resources: Opens the document in the local system using by using 'with' keyword in reading mode
+    Resources -> Resources: Create a variable content and store the content in the file by assigning content = file.read() and return it to the LLM whenever it is needed
+end group
+
+==Prompt Definitions==
+group order_assistant_prompt
+    Prompts -> Prompts: Define a prompt with @router.prompt decorator and assign a name "order_assistant" for prompt
+    Prompts -> Prompts: return the string of prompt when the MCP client loads the prompt
+end group
+group order_assistant_prompt
+    Prompts -> Prompts: Define a prompt with @router.prompt decorator and assign a name "order_status" for prompt
+    Prompts -> Prompts: return the string of prompt when the MCP client loads the prompt
+end group
+
+@enduml

@@ -1,0 +1,588 @@
+@startuml chat bot
+!theme plain
+skinparam sequenceMessageAlign center
+skinparam maxMessageSize 300
+skinparam noteBackgroundColor lightyellow
+skinparam noteTextColor black
+
+title Coffee Shop Chat Bot - Sequence Diagram with Exception Flow to User
+
+actor User
+participant "src/main.py\n main.py" as FastAPI
+participant "src/routers/router.py\n FastAPI Router" as Router
+participant "src/models/model.py\n Model" as Model
+participant "src/services/service.py\n Order Management Service" as Service
+participant "src/agents/agent.py \n Agent" as Agent
+participant "src/agents/prompt.py \n System Prompt" as Prompt
+participant "src/agents/agent.py \n LLM" as LLM
+participant Tools
+participant "src/utilities/error_log.py \n Error Log" as ErrorLogger
+participant "src/repositories/error_repository.py \n Error Repository" as ErrorLogRepository
+participant "src/migration/migration.py \n Migration" as Migration
+participant "src/repositories/database.py \n Database" as Session 
+participant "src/models/APIResponse.py\n APIResponse" as APIResponse
+participant "src/utilities/exceptions/custom_app_expection.py\n Custom Exception" as CustomException
+participant "src/utilities/exceptions/error_codes.py\n Error Codes" as ErrorCodes
+participant "src/utilities/exceptions/http_status.py\n HTTP Status" as HttpStatus
+
+==imports==
+note over FastAPI
+    **API imports**
+        import uvicorn
+        from fastapi.exceptions import RequestValidationError
+        from fastapi.responses import JSONResponse
+        from fastapi import FastAPI, Request
+        from fastapi.middleware.cors import CORSMiddleware
+        from routers.router import router
+        from models.APIresponse import APIResponse, Error
+        from utilities.exceptions.custom_exception import Custom_Exception
+        from utilities.exceptions.error_codes import ErrorCode
+        from utilities.exceptions.http_status import HttpStatusCode
+        from migration.migration import Migration
+        from settings import config
+end note
+
+note over Router
+    **Router imports**
+        from fastapi import APIRouter, Body
+        from fastapi.responses import JSONResponse
+        from models.APIresponse import APIResponse
+        from services.service import ChatBotService
+        from utilities.exceptions.custom_exception import Custom_Exception
+        from utilities.exceptions.error_codes import ErrorCode
+        from utilities.exceptions.http_status import HttpStatusCode
+        from utilities.error_log import error_logger
+        from models.model import User Query
+        import logging
+end note
+
+note over Model
+    **User Query imports**
+        from pydantic import BaseModel
+end note
+
+note over Service
+    **Service imports**
+        from repositories.repository import ChatBotRepository
+        from agents.agent import Agent
+        from utilities.exceptions.custom_exception import Custom_Exception
+        from utilities.exceptions.error_codes import ErrorCode
+        from utilities.exceptions.http_status import HttpStatusCode
+        from utilities.error_log import error_logger
+end note
+
+note over Agent
+    **Agent imports**
+        import json
+        import boto3
+        from langchain_aws import ChatBedrock
+        from langgraph.prebuilt import create_react_agent
+        from agents.prompt import Prompt
+        from tools.tool import Tool
+        from settings import config
+        from models.model import ResponseFormat
+        from langchain_mcp_adapters.client import MultiServerMCPClient
+        from langchain.agents.structured_output import ToolStrategy, ProviderStrategy
+        from utilities.exceptions.custom_exception import Custom_Exception
+        from utilities.exceptions.error_codes import ErrorCode
+        from utilities.exceptions.http_status import HttpStatusCode
+        from utilities.error_log import error_logger
+        import logging
+end note
+
+note over Tools
+    **Tools imports**
+        from langchain_core.tools import tool
+        from repositories.repository import ChatBotRepository
+        from utilities.error_log import error_logger
+        from utilities.exceptions.error_codes import ErrorCode
+        from utilities.exceptions.http_status import HttpStatusCode
+        from utilities.exceptions.custom_exception import Custom_Exception
+        import logging
+end note
+
+note over ErrorLogRepository
+    **Repository imports**
+        from repositories.database import Database
+        from repositories.schema.coffee_shop_models import Error_Logger
+end note
+
+note over Migration
+    **Migration imports**
+        from repositories.schema.coffee_shop_models import Base
+        from repositories.database import Database
+end note 
+
+note over Session
+    **Session imports**
+        from sqlalchemy import create_engine, inspect, text
+        from sqlalchemy.orm import sessionmaker
+        from settings import config
+        from utilities.exceptions.custom_exception import Custom_Exception
+        from utilities.exceptions.error_codes import ErrorCode
+        from utilities.exceptions.http_status import HttpStatusCode
+end note
+
+note over APIResponse
+    **APIResponse imports**
+        import uuid
+        from typing import List, Optional
+end note
+
+note over CustomException
+    **CustomException imports**
+        import uuid
+        from typing import List, Optional
+        from models.APIresponse import APIResponse, Error
+end note
+
+==API Response==
+autonumber 2.1
+group __init__ constructor function
+    APIResponse -> APIResponse: The constructor function is called whenever an instance foe calss APIResponse is created
+    APIResponse -> APIResponse: This constructor gets data, errors as optional list of error ,integer code as optional  and string message as optional as inbound parameters
+    APIResponse -> APIResponse: INbound data, errors, code is assigned for respective object's  attributes
+    APIResponse -> APIResponse: A uuid is created, formatted into string data type amd stored in attribute request_id 
+
+    alt if message not None
+        APIResponse -> APIResponse: Attribute message of the object is assigned with inbound message
+    else if no errors & no message
+        APIResponse -> APIResponse: Attribute message of the object is assigned with custom message as Success
+    else if length of errors is 1
+        APIResponse -> APIResponse: Attribute message of the object is assigned with error message in list error
+    end
+end group
+
+group to_dict() function
+    APIResponse -> APIResponse: This function is called when an APIResponse object needs to converted into dictionary format
+    alt if data is not empty
+        APIResponse -> APIResponse: Assign the APIResponse objects data in key "data"
+    else if data is empty
+        APIResponse -> APIResponse: Assign data as none  in key "data"
+    end
+    alt if errors is not empty
+        APIResponse -> APIResponse: Iterate over the errors and convert into dictonary using to_dict function and store in key "errors"
+    else if errors in empty
+        APIResponse -> APIResponse: Assign errors as empty list  in key "data"
+    end
+    APIResponse -> APIResponse: Assign inbound objects code in key "Status_code"
+    APIResponse -> APIResponse: Assign inbound objects request_id in key "request_id"
+    APIResponse -> APIResponse: Assign inbound objects message in key "messages"
+end group
+
+==Custom Exception==
+autonumber 2.2
+group __init__ constructor function
+    CustomException -> CustomException: This constructor function is called when object is created for class CustomException
+    CustomException -> CustomException: The constructoe gets string message, string code, integer status and List of errors as Optional as inbpound parameter
+    CustomException -> CustomException: Inbound message is assigned for object's message attribute
+    CustomException -> CustomException: Attribute code, status_code is assigned with inbound code and status_code
+    CustomException -> CustomException:  A uuid is created, formatted into string data type amd stored in attribute request_id 
+    CustomException -> CustomException: Object's error attribute is assigned eith inbound errors
+end group
+group to_api_response function
+    CustomException -> CustomException: Returns the instance of class APIResponse with no data, errors and code as attributes for instance creation 
+    APIResponse <- CustomException
+end group
+
+==API Requests==
+autonumber 1.1
+note over User
+**User Query**
+  User Query : "What is the status of my order '1234'?" 
+**API Endpoint Details**
+  URL: POST http://localhost:8000/coffee_shop_bot/api/v1/chat_bot/{customer_id}
+  Content-Type: application/json    
+  Accept: application/json
+end note
+User -> FastAPI
+activate FastAPI
+    FastAPI -> FastAPI: Creates an instance for FastAPI as app with lifespan function
+    group FastAPI-lifespan() function
+        FastAPI -> FastAPI: Create a variable migration and store the instance for class Migration
+        FastAPI -> Migration: 
+        group Migration - __init__ constructor function
+            Migration -> Migration: Create a variable self.db and store instance of Database class
+            Migration -> Session: 
+            ' group Session
+                Session -> Session: Create a protected variable instance and aassign None
+                group Database - __new__ constructor function
+                    alt if cls._instance == None
+                        Session -> Session: Call the super() class of __new__ to create new object and store in variable _instance of class cls 
+                        Session -> Session: Create a protected variable for class cls as initialized and assign false
+                    else 
+                        Session -> Session: Return the instance of class cls
+                    end 
+                end group
+                group Database - __init__ constructor function
+                    alt if initialized == true
+                        Session -> Session: If an object for the class Database is already initialized return
+                    else 
+                        Session -> Session: Create a variable engine for the object and call the function _create_engine
+                        group Database _create_engine() function
+                            Session -> Session: Create a variable db_url and store the url for database by using the db credentials from settings.py file and return the db_url  
+                        end group
+                        Session -> Session: Create a variable SessioonLocal and store instance for class Sessionmaker by providing db url for enginne and defining autoflush and autocommit
+                        Session -> Session: Assign the variable initialized as True as no other instance  is created for the class Database  
+                    end
+                end group 
+            ' end group
+            Migration <-- Session: 
+        end group
+        FastAPI <-- Migration: 
+        FastAPI -> FastAPI: Call the function create_tables() of class Migration using the instance in variable migration
+        FastAPI -> Migration: 
+        group Migration - create_tables() function
+            group create_tables() function Try block
+                Migration -> Migration: Using the class Base create the tables in database using the database engine
+            end group
+            group create_tables() function Except  block
+                Migration -> Migration: If any error raises while creating databse, raise the error
+            end group
+        end group
+    end group 
+    FastAPI -> FastAPI: Registers CORS middleware with appropriate origin, API method, headers
+    FastAPI -> FastAPI: Includes app with router to connect router file and expose the endpoints in router file 
+    FastAPI <- Router:
+    group custom_exception_handler(request: Request, exc: Custom_Exception) 
+        FastAPI -> FastAPI: Handles errors by converting custom exception to api response by sending to to_api_response function and then converting & returns as JSONResponse
+        FastAPI -> FastAPI: Error raised from router file is catched and triggers this function to format the error message and send to user
+        FastAPI -> FastAPI: This function takes the instance of Custom_Exception class as inbound parameter in variable exc
+        FastAPI -> FastAPI: Create a variable api_response and call the function to_api_response() in Custom_Exception class by assigning exc.to_api_response()
+        FastAPI -> CustomException: 
+        group to_api_response(self)
+            activate CustomException
+                CustomException -> CustomException: Call from validation_exception_handler function triggers the to_api_response and returns the instance of APIResponse class with Custom_Exception class's data 
+                CustomException -> CustomException: Use the Custom_Exception class's data and assigns data as None, errors and code 
+                CustomException -> APIResponse: 
+            deactivate CustomException
+        end group
+        ' activate APIResponse    
+        APIResponse -> APIResponse: Creates instance for class APIResponse by assigning data, errors as list, status code , generate request_id and message.
+        APIResponse --> FastAPI: Returns the instance for APIResponse to function custom_exception_handler()
+        ' deactivate APIResponse
+        FastAPI -> FastAPI: Create an instance for JSONResponse by using status_code from Custom_Exception class's object and data from APIResponse object as dictionary by using function to_dict in APIResponse class
+        FastAPI -> APIResponse:
+        APIResponse -> APIResponse: refer sequence number 2.8 to 2.15
+        APIResponse --> FastAPI: 
+        FastAPI -> FastAPI: returns the JSONResponse instance to user in defined format
+        FastAPI --> User
+    end group 
+    group validation_exception_handler(request: Request, exc: Custom_Exception) function
+        FastAPI -> FastAPI: Handles validation errors specifically by converting to api response and returning as JSONResponse
+        FastAPI -> FastAPI: Validation Error raised from router file is catched and triggers this function to format the validation error message and send to user
+        FastAPI -> FastAPI: This function takes the instance of RequestValidationError class as inbound parameter in variable exc
+        FastAPI -> FastAPI: Create a variable errors as list and iterate over the errors in inbound class exc
+        FastAPI -> FastAPI: Create an instance for class Error with error code and error message and append that to list error
+        FastAPI -> FastAPI: Create a variable api_response and store the instance for class APIResponse
+        FastAPI -> APIResponse: 
+        ' activate APIResponse    
+        APIResponse -> APIResponse: Creates instance for class APIResponse by assigning data, errors as list, status code , generate request_id and message.
+        APIResponse -> APIResponse: Returns the instance for APIResponse to function custom_exception_handler()
+        APIResponse -> FastAPI: 
+        ' deactivate APIResponse
+        FastAPI -> FastAPI: Create an instance for JSONResponse by using status_code from Custom_Exception class's object and data from APIResponse object as dictionary by using function to_dict in APIResponse class
+        FastAPI -> APIResponse:
+        APIResponse -> APIResponse: refer sequence number 2.8 to 2.15
+        APIResponse --> FastAPI: 
+        FastAPI -> FastAPI: returns the JSONResponse instance to user in defined format
+        FastAPI --> User:
+    end group
+    FastAPI -> FastAPI: Starts the application using uvicorn with FastAPI instance app, host, port, reload and log_level
+
+    group chat_bot_router(request, customer_id)
+        FastAPI -> Router: Forwards POST api - v1/chat_bot to router
+        activate Router
+        Router -> Router : Instance for APIRouter created with prefix of the URl "coffee_shop_bot/api" and stores in a variable router
+        Router -> Router : Create a variable service and store the instance for class ChatBotService in it
+        Router -> Router : Decorator @router.post defines the endpoint path operations for handling POST method and maps to chat_bot_router function
+            Router -> Router : Uses the model UserQuery to get payload from the user as it is the user query for AI model  and store in variable request
+            Router -> Model : Pydantic validates the payload using UserQuery pydantic model 
+            activate Model
+            Model -> Model: Assign an attribute user_query of datatype string in class UserQuery
+            Model -> Model: Pydantic validates the user query using the attribute user_query
+            Model --> Router : Validated object of payload is returned to chat_bot_router function
+            deactivate Model
+            Router -> Router : validate the inbound customer_id from Endpoint as path parameter 
+        group Try
+            Router -> Router: Creates a variable result and call the function chat_bot_service() by send the customer_id and request as parameters
+            Router -> Service
+            activate Service
+        end group
+        group Except as e
+            Router -> Router: Call the utility function error_logger() by sending the parameters file_name, function_name and error_message 'e' to create an error log in database
+            Router -> ErrorLogger: Any error raise, triggers the function error_logger() to create db record for error
+            activate ErrorLogger
+            group error_logger(file_name, function_name, error_message)
+                ErrorLogger -> ErrorLogger: create an instance for class ErrorLog and store in a variable repository
+                ErrorLogger -> ErrorLogger: Passes the incoming parameters to add_errorlog_repository function in error_repository to create a db record for error
+                ErrorLogger -> ErrorLogRepository:
+                activate ErrorLogRepository
+            end group
+            group add_errorlog_repository(file_name, function_name, error_message)
+                ErrorLogRepository -> ErrorLogRepository: create a variable db_instance and store the instance for class Database
+                ErrorLogRepository -> ErrorLogRepository: Create a variable db_session and store the database seesion
+                ErrorLogRepository -> ErrorLogRepository: create a variable error and assign the values to be insrted into database as instance for class Error_Logger and perform add & commit to save the changes in database
+                ErrorLogRepository -> ErrorLogRepository: Return the success message as True to error_logger function
+                ErrorLogRepository --> ErrorLogger
+            end group
+                deactivate ErrorLogRepository
+                ErrorLogger --> Router:  Return the success message from function add_errorlog_repository to router 
+            deactivate ErrorLogger
+            Router -> Router: Create Custom Exception instance with assigning error message to message,error code to variable code and stsatus code to variable status_code 
+            Router -> CustomException: Constructs CustomException instance with an error message and status code 
+            activate CustomException
+            CustomException -> CustomException: assigns the error message in variable message
+            CustomException -> ErrorCodes : Maps the errror code "VALIDATION_ERROR"
+            ErrorCodes --> CustomException: Returns the error code "ValidationErrorCode"
+            CustomException -> HttpStatus : Map status code alligns with the error cod "UNPROCESSABLE_ENTITY" 
+            HttpStatus --> CustomException: Returns the status code 422
+            CustomException -> CustomException: variable request_id generates and store a uuid id and store in strong format 
+            CustomException --> Router: Raise Custom Exception object
+            deactivate  CustomException
+            Router --> FastAPI: Raise Custom Exception object 
+            FastAPI -> FastAPI: Raised error is handled by the function  validation_exception_handler() and returned to user- Refer sequence number 1.21 to 1.35
+            FastAPI -> CustomException : Sends the Custom Exception object to to_api_response() function to convert into APIResponse
+            activate CustomException
+            CustomException --> FastAPI: Returns the APIResponse to router
+            deactivate  CustomException
+            FastAPI -> FastAPI: converts the APIResponse instance to user as JSON response by creating an istance for JSONResponse 
+            FastAPI --> FastAPI: return the JSONResponse to user by assigning content as dictionary of content in data and status code from APIResponse data 
+            FastAPI -> APIResponse:
+            FastAPI <-- APIResponse:
+            FastAPI --> User:
+            note left
+                **HTTP 422 UNPROCESSABLE_ENTITY**
+                    {
+                    "data":null,
+                    "errors":[{
+                        "code": "ValidationErrorCode",
+                        "message": "Validation error in router: ..."}],
+                    "status_code": 422,
+                    "request_id": "550e8400-e29b-41d4-a716-446655440000",
+                    message": "Validation error in router: ..."
+                    }
+            end note
+        end group
+    end group 
+
+    group chat_bot_service(self, request, customer_id)
+            Service -> Service: Call from function chat_bot_router triggers function chat_bot_service() with validated inbound user query and customer_id 
+            Service -> Service: create an instance for Agent class and stores in a variable agent by assigning Agent()
+        group Try 
+            Service -> Agent: Creates a variable result and call the function call_agent() with inbount user query and customer_id as parameter, as that invokes the created agent with llm model to decide which function to use for the given user query 
+        end group
+        group Except as e
+            Service -> Service: Refer sequence number 1.70 to 1.80 for looging error in database
+            Service -> Service: Create Custom Exception instance with assigning error message to message,error code to variable code and stsatus code to variable status_code 
+            Service -> CustomException: Constructs CustomException with an error message and status code 
+            activate CustomException
+            CustomException -> CustomException: assigns the error message in variable message
+            CustomException -> ErrorCodes : Maps the errror code "INTERNAL_SERVER_ERROR"
+            ErrorCodes --> CustomException: Returns the error code "InternalServerErrorCode"
+            CustomException -> HttpStatus : Map status code alligns with the error cod "INTERNAL_SERVER_ERROR" 
+            HttpStatus --> CustomException: Returns the status code 500
+            CustomException -> CustomException: variable request_id generates and store a uuid id and store in strong format 
+            CustomException --> Service: Raise Custom Exception object
+            deactivate CustomException
+            Service --> Router : Raise Custom Exception object
+            deactivate Service
+            Router --> FastAPI: Raise Custom Exception object
+            deactivate Router
+            FastAPI -> CustomException : Sends the Custom Exception object to convert into APIResponse instance
+            activate CustomException
+            CustomException --> FastAPI: Returns the APIResponse to router
+            deactivate CustomException
+            FastAPI --> FastAPI: return the JSONResponse to user by assigning content as dictionary of content in data and status code from APIResponse data 
+            FastAPI --> User: 
+            deactivate FastAPI
+            note left
+                **HTTP 500 INTERNAL SERVER ERROR**
+                    {
+                        "data": null,
+                        "errors": [{
+                            "code": "InternalServerErrorCode",
+                            "message": "Service layer error: ... "}]
+                        "status_code": 500,
+                        "request_id": "550e8400-e29b-41d4-a716-446655440000",
+                        "message": "Service layer error: ... "
+                    }
+            end note
+        end group 
+    end group
+    group Agent
+        Agent -> Agent: Create a variable MCP_SERVER_URL and assign the url of MCP server globally
+        Agent -> Agent: Create a variable PROMPT_ARGS and store the prompt name as key and its arguments dictionary as value
+        Agent -> Agent: Create a variable DB_URI and store the database url as formated string 
+        Agent -> Agent: Create an instance for class Prompt and store in a variable prompt by assigning Prompt() to access the system prompt for llm model in the function
+            group call_agent(self, request, customer_id) 
+                group Try 
+                    activate Agent
+                    Agent -> Agent: Using with clause create AsyncPostgresSaver checkpointer using the DB_URL and store it in variable checkpointer
+                    Agent -> Agent: Using the checkpointer call the function setup() to create necessary tables for storing checkpoints in database
+                    Agent -> Agent: Create a variable agent and call the function create_agent_instance() with checkpointer as parameter to return the created agent with registered tools 
+                    Agent -> Agent: Create a variable client and call thr function create_mcp_client()  to get instance for MultiServerMCPClient
+                    Agent -> Agent: Get the session id for instance of MultiServerMCPClient in variable client using with clause and store in a variable session
+                    Agent -> Agent: Create a variable list_result, get & store the list of prompts from  server using list_prompts function
+                    Agent -> Agent: Create a variable available_prompts and store the  prompts in list type in variable list_result
+                    Agent -> Agent: Iterate over the available_prompts list and get the argument of each prompt and store in variable args
+                    Agent -> Agent: Load each of the prompts available in MCP serrver using  load_mcp_prompt() function with session and arguments as parameter for the function and append in list messages
+                    Agent -> Agent: Load the resources from server using function load_mcp_resources with session id as parameter and store as list in variable blobs
+                    Agent -> Agent: Iterate over the list blobs, get the uri and text content of the resources
+                    Agent -> Agent: Concat the string of uri and text content of resources in string variable resource_context
+                    Agent -> Agent: Store the list of prompts in variable messages
+                    alt if resource_context is true
+                        Agent -> Agent: append the reources from server with custom message in list messages
+                    end
+                    Agent -> Agent: Append the user qyery to the list messages
+                    
+                    Agent -> Agent: Create a variable result and invoke the agent by using the instance of agent in variable "agent" with function 'ainvoke' by giving list messages containing prompt, resource & user query and customer_id for thread_id configurations 
+                    Agent -> LLM:
+                    activate LLM
+                    LLM -> LLM: Based on the user query, llm model decides to activate which tool to be triggered and activate the tool by providing the required inputs and get the output from server
+                    LLM -> Tools:
+                    Tools -> Tools: Tools are activated by LLM and it performs actions and returns the result to llm
+                    Tools --> LLM: LLM model process the response from tools and convert it into response based in the system prompt and return it to function call_agent 
+                    deactivate LLM
+                    LLM --> Agent:
+                    Agent -> Agent: Assign a variable final_result and store the extracted content from the "result" metadata which is provided by llm
+                    Agent -> Agent:  Return the extracted content in the variable final result to the function chat_bot_service
+                    Agent --> Service:
+                    deactivate Agent
+                    Service -> Service: Variable result stores the response from Agent and return it to function chat_bot_router()
+                    Service --> Router:
+                    Router -> Router:  Variable result stores the response and converts the response to APIResponse by creating instance by send parameters like result, http status code and message
+                    Router -> APIResponse:
+                    activate APIResponse
+                    APIResponse -> APIResponse: Creates instance by assigning the message, status code and message
+                    APIResponse --> Router:
+                    deactivate APIResponse 
+                    Router -> Router: Converts the APIResponse to JSONResponse by creating instance for it and returning it to user
+                    Router --> User:
+                    note left
+                        **HTTP 200 OK**
+                            {
+                                "data": 
+                                {
+                                    "response": "Your order "1234" is still processing Sudharsan
+                                },
+                            "errors":[],
+                            "status_code": 200,
+                            "request_id": "550e8400-e29b-41d4-a716-446655440000",
+                            "message": "Success"
+                            }
+                    end note
+                end group
+                group Except as e
+                    Agent -> Agent: Refer sequence numbe 1.70 to 1.80 for logging the error in database
+                    Agent -> Agent: Create Custom Exception instance with assigning error message to message,error code to variable code and stsatus code to variable status_code 
+                    Agent -> CustomException: Constructs CustomException with an error message and status code 
+                    activate CustomException
+                        CustomException -> CustomException: assigns the error message in variable message
+                        CustomException -> ErrorCodes : Maps the errror code "INTERNAL_SERVER_ERROR"
+                        ErrorCodes --> CustomException: Returns the error code "InternalServerErrorCode"
+                        CustomException -> HttpStatus : Map status code alligns with the error cod "INTERNAL_SERVER_ERROR" 
+                        HttpStatus --> CustomException: Returns the status code 500
+                        CustomException -> CustomException: variable request_id generates and store a uuid id and store in strong format
+                        CustomException --> Agent: Raise Custom Exception object
+                    deactivate CustomException
+                    Agent -->  Service:  Raise Custom Exception object
+                    Service --> Router : Raise Custom Exception object
+                    Router --> FastAPI: Raise Custom Exception object
+                    FastAPI -> CustomException : Sends the Custom Exception object to convert into APIResponse
+                    activate CustomException
+                    CustomException --> FastAPI: Returns the APIResponse to router function chat_bot_router()
+                    deactivate CustomException
+                    FastAPI -> FastAPI: converts the APIResponse instance to user as JSON response by creating an istance for JSONResponse 
+                    FastAPI --> FastAPI: return the JSONResponse to user by assigning content as dictionary of content in data and status code from APIResponse data 
+                    FastAPI -> APIResponse:
+                    FastAPI <-- APIResponse:
+                    FastAPI --> User:
+                    note left
+                        **HTTP 500 INTERNAL SERVER ERROR**
+                            {
+                                "data": null,
+                                "errors": [{
+                                    "code": "InternalServerErrorCode",
+                                    "message": "Calling agent error: ... "}]
+                                "status_code": 500,
+                                "request_id": "550e8400-e29b-41d4-a716-446655440000",
+                                "message": "Calling agent error: ... "
+                            }
+                    end note
+                end group
+            end group
+            group create_mcp_client(self)
+                group Try
+                    Agent -> Agent: Create instance for MultiSereverMCPClient class by providing custom server name, transport method for server and client and the url of server, stored in a variable MCP_SERVER_URL
+                    Agent -> Agent: Return the created instance as a communication bridge between MCP Server and MCP Client 
+                end group 
+                group Except as e
+                    Agent -> Agent: Refer except block of call_agent() function for error logging in database and raising custom exception 
+                end group
+            end group
+            group create_agent_instance(self, checkpointer)
+                group Try  
+                    Agent -> Agent: Call from function chat_bot_service triggers the function call_agent() with input user query as parameter
+                    Agent -> Agent: Create a variable llm_model and call the function create_llm_model() to get instance for the model
+                    Agent -> Agent: Create a variable client and call the function create_mcp_client() to get instance for class MultiServerMCPClient
+                    Agent -> Agent: Load all the tools from MCP server using the method get_tools() with instance client and store in a variable tools 
+                    Tools -> Agent:
+                    Agent -> Agent : Create a variable agent_prompt and call the function get_system_prompt to get the system prompt for agent 
+                    Agent -> Prompt:
+                    group get_system_prompt()
+                            activate Prompt
+                                Prompt -> Prompt: call from create_agent_instance() function triggers the function get_system_prompt(), that returns the system prompt for llm model
+                                Prompt --> Agent:
+                            deactivate Prompt
+                    end group
+                    Agent -> Agent : Create a variable agent_prompt and call the function get_system_prompt to get the system prompt for agent 
+                    Agent -> Prompt:
+                    group summary_system_prompt()
+                            activate Prompt
+                                Prompt -> Prompt: call from create_agent_instance() function triggers the function summary_system_prompt(), that returns the system prompt for summarization process by llm model
+                                Prompt --> Agent:
+                            deactivate Prompt
+                    end group
+                    Agent -> Agent: Create the agent with LLM model, available tools, system prompt and checkpointer for memory management purpose and the reponse_format
+                    Agent -> Agent: Inthe response format provide the union of Pydantic models for response format validation and use the function custom_error_handler for handle errors parameter
+                    Agent <-> Model:
+                    Agent -> Agent: Define the middleware for summarization by initializing the SummarizationMiddleware with parameters like model, system prompt, trigger and keep parameters with message count
+                    Agent -> Agent: Define the middleware for personal information detection by providing the type of pii for detection, and the strategy to be followed after detection of pii
+                end group
+                group Except 
+                    Agent -> Agent: Refer except block of call_agent() function for error logging in database and raising custom exception to user
+                end group 
+            end group 
+            group create_llm_model(self, max_token, temperature)
+                group Try
+                    Agent -> Agent: Call from create_agent_instance function triggers this function to create and return an instance for LLM model
+                    Agent -> Agent: The function create_llm_model() returns the ChatBedrock instance which has sent credentials, modelarn and model parameters as input parameters. 
+                    Agent -> Agent: Use the default temperature and max_token in parameter 
+                    Agent -> Agent: Create an instance for class ChatBedrock by providing the instance for bedrock client, model id of the LLM model from settings file, provider name and the parameters like max_token and temperature from settings file
+                end group
+                group Except
+                    Agent -> Agent: Refer except block of create_agent_instance() function for error logging in database and raising custom exception to user
+                end group
+            end group
+            group get_bedrock_client() 
+                group Try
+                    Agent -> Agent: CAll from function create_llm_model triggers ths function to create client for accessing AWS AI models
+                    Agent -> Agent: The function get_bedrock_client returns thr client for boto3 models
+                    Agent -> Agent: Create client to access LLM models from boto3 by providing service_name and region_name and return it
+                end group
+                group Except
+                    Agent -> Agent: Refer except block of create_agent_instance() function for error logging in database and raising custom exception to user
+                end group
+            end group
+            group custom_error_handler(error)
+                alt if error of type StructuredOutputValidationError
+                    Agent -> Agent: Return the custom message to LLM for retrying
+                else if error of type MultipleStructuredOutputsError
+                    Agent -> Agent: Return the custom message to LLM for retrying & to pick the best suitable format
+                else
+                    Agent -> Agent:  Return the error message to LLM
+                end
+            end group
+    end group
+@enduml
