@@ -1,5 +1,4 @@
 # models/api_response_dto.py
-import uuid
 from typing import List, Optional
 
 class Error:
@@ -19,12 +18,13 @@ class APIResponse:
         data=None,
         errors: Optional[List[Error]] = None,
         code: Optional[int] = None,
-        message: Optional[str] = None
+        message: Optional[str] = None,
+        request_id: Optional[str] = None,
     ):
         self.data = data or []
         self.errors = errors or []
         self.code = code or 200
-        self.request_id = str(uuid.uuid4())
+        self.request_id = request_id
 
         # Use provided message, or generate one
         if message is not None:

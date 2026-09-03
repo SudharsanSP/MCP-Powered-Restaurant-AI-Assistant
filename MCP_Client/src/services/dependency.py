@@ -2,13 +2,10 @@ from __future__ import annotations
 
 from contextlib import AsyncExitStack
 from typing import AsyncIterator
-
 from fastapi import Request
-
 from agents.agent import Agent
 from client.client import (
-    create_bedrock_client,
-    create_chatbedrock,
+    create_chat_model,
     create_checkpointer,
     create_mcp_client,
 )
@@ -25,7 +22,6 @@ class ApplicationDependencies:
 
     def __init__(self) -> None:
         self._exit_stack = AsyncExitStack()
-        self.bedrock_client = None
         self.llm_model = None
         self.summary_model = None
         self.mcp_client = None
@@ -36,13 +32,8 @@ class ApplicationDependencies:
     async def initialize(self) -> None:
         logger.info("Initializing shared application dependencies")
         try:
-            self.bedrock_client = create_bedrock_client()
-            self.llm_model = create_chatbedrock(
-                self.bedrock_client, config.max_token, config.temperature
-            )
-            self.summary_model = create_chatbedrock(
-                self.bedrock_client, 150, 0.5
-            )
+            self.llm_model = create_chat_model(config.max_token, config.temperature)
+            self.summary_model = create_chat_model(150, 0.5)
             self.mcp_client = create_mcp_client()
             agent_factory = Agent(None, self.mcp_client)
             tools = await agent_factory.get_tools()
@@ -68,8 +59,6 @@ class ApplicationDependencies:
     async def close(self) -> None:
         logger.info("Closing shared application dependencies")
         await self._exit_stack.aclose()
-        if self.bedrock_client is not None:
-            self.bedrock_client.close()
         logger.info("Shared application dependencies closed")
 
 

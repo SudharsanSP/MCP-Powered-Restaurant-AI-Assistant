@@ -1,9 +1,16 @@
+import asyncio
+import sys
+
+# if sys.platform == "win32":
+#     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
 import uvicorn
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from routers.router import router
+from routers.default_router import router as default_router
 from models.APIresponse import APIResponse, Error
 from utilities.exceptions.custom_exception import Custom_Exception
 from utilities.exceptions.error_codes import ErrorCode
@@ -12,6 +19,8 @@ from migration.migration import Migration
 from settings import config
 from services.dependency import lifespan_dependencies
 from utilities.logger import get_logger
+from middleware.auth import AuthMiddleware
+from repositories.database import Database
 
 logger = get_logger(__name__)
 
@@ -19,11 +28,14 @@ async def lifespan(app: FastAPI):
     logger.info("Starting application lifespan")
     migration = Migration()
     await migration.create_tables()
-    async for dependencies in lifespan_dependencies():
-        app.state.dependencies = dependencies
-        logger.info("Application startup completed")
-        yield
-    logger.info("Application shutdown completed")
+    try:
+        async for dependencies in lifespan_dependencies():
+            app.state.dependencies = dependencies
+            logger.info("Application startup completed")
+            yield
+    finally:
+        await Database().close()
+        logger.info("Application shutdown completed")
 
 # FASTAPI  INITIALIZATION
 app = FastAPI(
@@ -37,16 +49,29 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
+    # allow_origins=config.allowed_origins,
     allow_methods=["*"],
     allow_headers=["*"]
 )
+app.add_middleware(AuthMiddleware)
 
 app.include_router(router)
+app.include_router(default_router)
 
 # EXCEPTION HANDLERS 
 @app.exception_handler(Custom_Exception)
 async def custom_exception_handler(request: Request, exc: Custom_Exception):
-    logger.error("Application error while handling %s %s: %s", request.method, request.url.path, exc)
+    exc.request_id = request.state.request_id
+    logger.error(
+        "Application error while handling method=%s path=%s error_code=%s",
+        request.method,
+        request.url.path,
+        exc.code,
+        extra={
+            "request_id": request.state.request_id,
+            "exception": str(exc),
+        },
+    )
     api_response = exc.to_api_response()
     return JSONResponse(
         status_code=exc.status_code,
@@ -55,7 +80,13 @@ async def custom_exception_handler(request: Request, exc: Custom_Exception):
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    logger.warning("Request validation failed for %s %s", request.method, request.url.path)
+    request_id = getattr(request.state, "request_id", None)
+    logger.warning(
+        "Request validation failed method=%s path=%s",
+        request.method,
+        request.url.path,
+        extra={"request_id": request_id},
+    )
     errors = []
     for error in exc.errors():
         errors.append(Error(
@@ -66,7 +97,8 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     api_response = APIResponse(
         data=None,
         errors=errors,
-        code=HttpStatusCode.UNPROCESSABLE_ENTITY
+        code=HttpStatusCode.UNPROCESSABLE_ENTITY,
+        request_id=request_id,
     )
     
     return JSONResponse(
@@ -80,6 +112,7 @@ if __name__ == "__main__":
         "main:app",
         host=config.host,
         port=config.port,
-        reload=True,
+        loop=asyncio.SelectorEventLoop if sys.platform == "win32" else "auto",
+        reload=False,
         log_level= config.log_level.lower()
     )

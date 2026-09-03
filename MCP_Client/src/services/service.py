@@ -17,10 +17,10 @@ class ChatBotService:
             return result
         except Custom_Exception:
             raise
-        except Exception as e:
+        except Exception:
             logger.exception("Chat service failed for customer_id=%s", customer_id)
             raise Custom_Exception(
-                message=f"Unexpected service error: {str(e)}",
+                message="The chat request could not be completed.",
                 code=ErrorCode.INTERNAL_SERVER_ERROR,
                 status_code=HttpStatusCode.INTERNAL_SERVER_ERROR,
             )

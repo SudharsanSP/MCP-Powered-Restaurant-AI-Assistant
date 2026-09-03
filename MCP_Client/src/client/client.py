@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-import boto3
-from langchain_aws import ChatBedrock
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 
@@ -11,28 +10,18 @@ from utilities.logger import get_logger
 logger = get_logger(__name__)
 
 
-def create_bedrock_client():
-    logger.info("Creating shared Bedrock runtime client for region=%s", config.aws_region)
-    return boto3.client(
-        service_name="bedrock-runtime",
-        region_name=config.aws_region,
-    )
-
-
-def create_chatbedrock(bedrock_client, max_tokens: int, temperature: float):
+def create_chat_model(max_tokens: int, temperature: float):
     logger.info(
-        "Creating shared ChatBedrock model with max_tokens=%s temperature=%s",
+        "Creating shared Gemini model=%s with max_output_tokens=%s temperature=%s",
+        config.gemini_model,
         max_tokens,
         temperature,
     )
-    return ChatBedrock(
-        client=bedrock_client,
-        model_id=config.model_id,
-        provider="amazon",
-        model_kwargs={
-            "max_tokens": max_tokens,
-            "temperature": temperature,
-        },
+    return ChatGoogleGenerativeAI(
+        model=config.gemini_model,
+        google_api_key=config.google_api_key,
+        max_output_tokens=max_tokens,
+        temperature=temperature,
     )
 
 

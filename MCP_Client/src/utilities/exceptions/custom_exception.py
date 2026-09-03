@@ -1,5 +1,4 @@
 # dtos/custom_app_exception.py
-import uuid
 from typing import List, Optional
 from models.APIresponse import APIResponse, Error
 
@@ -11,7 +10,8 @@ class Custom_Exception(Exception):
         message: str,
         code: str,
         status_code: int,
-        errors: Optional[List[Error]] = None
+        errors: Optional[List[Error]] = None,
+        request_id: Optional[str] = None,
     ):
         super().__init__(message)
         self.message = message
@@ -20,13 +20,14 @@ class Custom_Exception(Exception):
         self.errors = errors or [
             Error(code=code, message=message)
         ]
-        self.request_id = str(uuid.uuid4())
+        self.request_id = request_id
 
     def to_api_response(self) -> APIResponse:
         return APIResponse(
             data=None,           # No data on error
             errors=self.errors,
-            code=self.status_code
+            code=self.status_code,
+            request_id=self.request_id,
         )
 
     def __str__(self):

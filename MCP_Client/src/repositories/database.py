@@ -46,6 +46,11 @@ class Database:
         )
         self._initialized = True
 
+    async def close(self) -> None:
+        if self._initialized:
+            await self.engine.dispose()
+            self._initialized = False
+
     async def get_session(self) -> AsyncGenerator[AsyncSession, None]:
         async with self.session_factory() as session:
             yield session
@@ -63,9 +68,12 @@ async def test_connection():
         async with db.engine.begin() as connection:
             await connection.execute(text("SELECT 1"))
         return True
-    except Exception:
+    except Exception as exc:
+        from utilities.logger import get_logger
+
+        get_logger(__name__).exception("Database connectivity check failed")
         raise Custom_Exception(
-            message="DB connection failed",
+            message="The database is unavailable.",
             code=ErrorCode.DB_CONNECTION_FAIL,
             status_code=HttpStatusCode.SERVICE_UNAVAILABLE,
         )

@@ -1,11 +1,11 @@
 from routers.router import router
-import logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+from utilities.logger import get_logger
+
+logger = get_logger(__name__)
 
 @router.prompt("order_assistant")
 def order_assistant_prompt():
-    logger.info(f"order assistant prompt {logger}")
+    logger.info("Building order assistant prompt")
     return """
     You are a helpful coffee shop assistant
         -You help customers choose and order drinks and snacks
@@ -17,7 +17,7 @@ def order_assistant_prompt():
 
 @router.prompt("order_status")
 def order_status_prompt():
-    logger.info(f"order status prompt assistant prompt {logger}")
+    logger.info("Building order status prompt")
     return """
     You help customers track their orders
         -order ID is not mandatory for getting order details 

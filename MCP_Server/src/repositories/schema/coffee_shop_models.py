@@ -1,4 +1,7 @@
+import uuid
+
 from sqlalchemy import Column, Integer, Enum, text, DateTime, String, ForeignKey, Boolean, Float
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 import enum
@@ -6,7 +9,7 @@ import enum
 Base = declarative_base()
 class Customer(Base):
     __tablename__ = "customers"
-    customer_id = Column(Integer, primary_key=True)
+    customer_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = Column(String, nullable=False)
     phone_number = Column(String, nullable=False, unique=True)
     is_active = Column(Boolean, default=True)
@@ -35,7 +38,7 @@ class OrderStatus(enum.Enum):
 class Order(Base):
     __tablename__ = "orders"
     order_id = Column(Integer, primary_key=True)
-    customer_id = Column(Integer, ForeignKey("customers.customer_id"))
+    customer_id = Column(UUID(as_uuid=True), ForeignKey("customers.customer_id"))
     total_amount = Column(Float, nullable= False)
     order_status = Column(Enum(OrderStatus), nullable=False,default=OrderStatus.ordered)
     is_active = Column(Boolean, server_default=text("true"))

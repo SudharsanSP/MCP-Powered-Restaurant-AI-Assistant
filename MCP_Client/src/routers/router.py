@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from fastapi import APIRouter, Body, Depends, Path
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,7 +18,7 @@ router = APIRouter(prefix="/coffee_shop_bot/api")
 @router.post("/v1/chat_bot/{customer_id}")
 async def chat_bot_router(
     request: UserQuery = Body(...),
-    customer_id: int = Path(...),
+    customer_id: UUID = Path(...),
     service: ChatBotService = Depends(get_chatbot_service),
 ):
     try:
@@ -33,10 +35,10 @@ async def chat_bot_router(
         )
     except Custom_Exception:
         raise
-    except Exception as e:
+    except Exception:
         logger.exception("Unhandled error in chat_bot_router for customer_id=%s", customer_id)
         raise Custom_Exception(
-            message=f"Router error: {str(e)}",
+            message="The request could not be completed.",
             code=ErrorCode.INTERNAL_SERVER_ERROR,
             status_code=HttpStatusCode.INTERNAL_SERVER_ERROR,
         )

@@ -1,6 +1,9 @@
 # migrations/create_tables.py
 from repositories.schema.coffee_shop_models import Base
 from repositories.database import Database
+from utilities.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class Migration:
@@ -8,13 +11,14 @@ class Migration:
         self.db = Database()
 
     async def create_tables(self):
+        logger.info("Starting database table migration")
         try:
             async with self.db.engine.begin() as conn:
                 await conn.run_sync(Base.metadata.create_all)
-            print("Database tables created successfully")
-        except Exception as e:
-            print(f"Error creating tables: {str(e)}")
-            raise e
+            logger.info("Database table migration completed successfully")
+        except Exception:
+            logger.exception("Database table migration failed")
+            raise
 
 
 if __name__ == "__main__":

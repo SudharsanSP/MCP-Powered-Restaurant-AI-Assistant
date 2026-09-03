@@ -1,4 +1,5 @@
 from settings import config
+from uuid import UUID
 from langchain.agents import create_agent
 from langchain.agents.middleware import PIIMiddleware, SummarizationMiddleware
 from langchain.agents.structured_output import ToolStrategy
@@ -66,10 +67,13 @@ class Agent:
             logger.warning("Agent returned multiple structured outputs")
             return "Multiple outputs were returned, pick the single format that is more relevant"
         else:
-            logger.error("Agent returned an unexpected structured output error: %s", error)
+            logger.error(
+                "Agent returned an unexpected structured output error",
+                extra={"exception": str(error)},
+            )
             return f"Unexpected error: {str(error)}"
 
-    async def call_agent(self, request, customer_id):
+    async def call_agent(self, request, customer_id: UUID):
         try:
             logger.info("Starting agent execution for customer_id=%s", customer_id)
             async with self.mcp_client.session("my_server") as session:
@@ -104,10 +108,10 @@ class Agent:
             return result.get("structured_response")
         except Custom_Exception:
             raise
-        except Exception as e:
+        except Exception:
             logger.exception("Agent execution failed for customer_id=%s", customer_id)
             raise Custom_Exception(
-                message=f"calling agent error: {str(e)}",
+            message="The assistant could not complete the request.",
                 code=ErrorCode.INTERNAL_SERVER_ERROR,
                 status_code=HttpStatusCode.INTERNAL_SERVER_ERROR,
             )
