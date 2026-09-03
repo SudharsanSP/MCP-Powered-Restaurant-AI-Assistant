@@ -1,10 +1,10 @@
-import logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+from utilities.logger import get_logger
+
+logger = get_logger(__name__)
 
 class Prompt:
     def get_system_prompt(self):
-        logger.info(f"get system prompt {logger}")
+        logger.debug("Building the main system prompt")
         system_prompt = """
         
         You are Brew Buddy, a cheerful coffee shop assistant. Be warm, recommend drinks, and keep it fun
@@ -35,7 +35,7 @@ class Prompt:
     
 
     def summary_system_prompt(self):
-        logger.info(f"get system prompt {logger}")
+        logger.debug("Building the conversation summary prompt")
         system_prompt = """
         Summarize the conversation clearly and concisely.
         IMPORTANT: Always preserve:

@@ -10,17 +10,25 @@ from utilities.exceptions.error_codes import ErrorCode
 from utilities.exceptions.http_status import HttpStatusCode
 from migration.migration import Migration
 from settings import config
+from services.dependency import lifespan_dependencies
+from utilities.logger import get_logger
+
+logger = get_logger(__name__)
 
 async def lifespan(app: FastAPI):
-    # Startup
+    logger.info("Starting application lifespan")
     migration = Migration()
     await migration.create_tables()
-    yield
+    async for dependencies in lifespan_dependencies():
+        app.state.dependencies = dependencies
+        logger.info("Application startup completed")
+        yield
+    logger.info("Application shutdown completed")
 
 # FASTAPI  INITIALIZATION
 app = FastAPI(
-    title="Health Check API",
-    description="check Health ",
+    title="MCP-Powered Restaurant AI Assistant",
+    description="Chatbot assistant",
     version="1.0.0",
     lifespan=lifespan
 )
@@ -38,6 +46,7 @@ app.include_router(router)
 # EXCEPTION HANDLERS 
 @app.exception_handler(Custom_Exception)
 async def custom_exception_handler(request: Request, exc: Custom_Exception):
+    logger.error("Application error while handling %s %s: %s", request.method, request.url.path, exc)
     api_response = exc.to_api_response()
     return JSONResponse(
         status_code=exc.status_code,
@@ -46,6 +55,7 @@ async def custom_exception_handler(request: Request, exc: Custom_Exception):
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    logger.warning("Request validation failed for %s %s", request.method, request.url.path)
     errors = []
     for error in exc.errors():
         errors.append(Error(

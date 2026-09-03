@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import Optional
 
 from pydantic import BaseModel, Field
@@ -14,7 +16,7 @@ class OrderResponse(BaseModel):
     """Consume this if & only if you wanted to return an order been placed as a response"""
     model_response: str = Field(description= "General response from the model")
     order_id: int = Field(description= "Order id of the placed order")
-    order_items: Optional[list[dict[MenuList]]] = Field(description="List of items in the order")
+    order_items: Optional[list[dict[str, MenuList]]] = Field(description="List of items in the order")
     total_amount: float = Field(description="Total amount of the order")
 
 class StatusResponse(BaseModel):
