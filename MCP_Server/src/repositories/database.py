@@ -9,6 +9,9 @@ from settings import config
 from utilities.exceptions.custom_exception import Custom_Exception
 from utilities.exceptions.error_codes import ErrorCode
 from utilities.exceptions.http_status import HttpStatusCode
+from utilities.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class Database:
@@ -62,8 +65,10 @@ async def test_connection():
     try:
         async with db.engine.begin() as connection:
             await connection.execute(text("SELECT 1"))
+        logger.info("Database connection test completed successfully")
         return True
     except Exception:
+        logger.exception("Database connection test failed")
         raise Custom_Exception(
             message="DB connection failed",
             code=ErrorCode.DB_CONNECTION_FAIL,

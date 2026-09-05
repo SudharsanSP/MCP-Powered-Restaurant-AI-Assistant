@@ -9,8 +9,8 @@ class UserQuery(BaseModel):
 
 class MenuResponse(BaseModel):
     """Consume this model if & only if you wanted to return a Menu to the user"""
-    model_response: str = Field(description= "General response from the model")
-    menu_items: MenuList = Field(description= "Items available in menu")
+    model_response: str = Field(description= "General response about the shop from the model")
+    menu_items: MenuList = Field(description= "All the items available in menu")
 
 class OrderResponse(BaseModel):
     """Consume this if & only if you wanted to return an order been placed as a response"""

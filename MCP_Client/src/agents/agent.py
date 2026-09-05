@@ -1,10 +1,7 @@
-from settings import config
 from uuid import UUID
 from langchain.agents import create_agent
 from langchain.agents.middleware import PIIMiddleware, SummarizationMiddleware
 from langchain.agents.structured_output import ToolStrategy
-from langchain_mcp_adapters.prompts import load_mcp_prompt
-from langchain_mcp_adapters.resources import load_mcp_resources
 from langchain.agents.structured_output import StructuredOutputValidationError, MultipleStructuredOutputsError
 from utilities.exceptions.custom_exception import Custom_Exception
 from utilities.exceptions.error_codes import ErrorCode
@@ -15,10 +12,6 @@ from utilities.logger import get_logger
 
 logger = get_logger(__name__)
 
-PROMPT_ARGS = {
-    "order_assistant": {"use":"assist customers in ordering"},
-    "order_status": {"use":"assist customers in getting order details and order updates"}
-}
 class Agent:
     def __init__(self, agent, mcp_client):
         self.agent = agent
@@ -39,7 +32,7 @@ class Agent:
             middleware=[
                 SummarizationMiddleware(
                     model=summary_model,
-                    trigger=("messages", 10),
+                    trigger=("messages", 5),
                     keep=("messages", 2),
                     system_prompt=prompt.summary_system_prompt(),
                 ),
@@ -76,35 +69,19 @@ class Agent:
     async def call_agent(self, request, customer_id: UUID):
         try:
             logger.info("Starting agent execution for customer_id=%s", customer_id)
-            async with self.mcp_client.session("my_server") as session:
-                list_result = await session.list_prompts()
-                available_prompts = list_result.prompts
-
-                all_prompt_messages = []
-                for prompt in available_prompts:
-                    args = PROMPT_ARGS.get(prompt.name, {})
-                    messages = await load_mcp_prompt(session, prompt.name, arguments=args)
-                    all_prompt_messages.extend(messages)
-
-                blobs = await load_mcp_resources(session)
-                resource_context = ""
-                for blob in blobs:
-                    uri = blob.metadata.get("uri", "unknown")
-                    text = blob.as_bytes().decode("utf-8", errors="replace")
-                    resource_context += f"\n[{uri}]\n{text}\n"
-
-                messages = list(all_prompt_messages)
-                if resource_context:
-                    messages.append(
-                        f"Here are the available resources:\n{resource_context}"
-                    )
-                messages.append(("user", f"hey, my customer_id is {customer_id}, {request.user_query}"))
+            messages = [
+                (
+                    "user",
+                    f"customer_id={customer_id}; query={request.user_query}",
+                )
+            ]
 
             result = await self.agent.ainvoke(
                 {"messages": messages},
-                {"configurable": {"thread_id": customer_id}},
+                {"configurable": {"thread_id": str(customer_id)}},
             )
             logger.info("Agent returned structured result for customer_id=%s", customer_id)
+            print(result)
             return result.get("structured_response")
         except Custom_Exception:
             raise

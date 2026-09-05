@@ -1,6 +1,6 @@
 from uuid import UUID
-
 from fastapi import APIRouter, Body, Depends, Path
+from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from models.APIresponse import APIResponse
@@ -14,8 +14,8 @@ from utilities.logger import get_logger
 
 logger = get_logger(__name__)
 
-router = APIRouter(prefix="/coffee_shop_bot/api")
-@router.post("/v1/chat_bot/{customer_id}")
+router = APIRouter(prefix="/coffee_shop_bot/api/v1")
+@router.post("/chat_bot/{customer_id}")
 async def chat_bot_router(
     request: UserQuery = Body(...),
     customer_id: UUID = Path(...),
@@ -30,7 +30,7 @@ async def chat_bot_router(
             message="Success",
         )
         return JSONResponse(
-            content=data.to_dict(),
+            content=jsonable_encoder(data.to_dict()),
             status_code=data.code,
         )
     except Custom_Exception:

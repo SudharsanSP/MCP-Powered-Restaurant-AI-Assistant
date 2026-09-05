@@ -43,6 +43,7 @@ class ChatBotRepository:
                 select(Order)
                 .where(Order.customer_id == customer_id, Order.is_active.is_(True))
                 .order_by(desc(Order.created_at))
+                .limit(1)
             )
             return result.scalar_one_or_none()
         except Custom_Exception:
@@ -145,11 +146,11 @@ class ChatBotRepository:
             db_session.add(new_order)
             await db_session.flush()
 
-            for item, cnt in zip(item_id, count):
+            for item_id, cnt in zip(item_id, count):
                 db_session.add(
                     Order_Item(
                         order_id=new_order.order_id,
-                        item_id=item,
+                        item_id=item_id,
                         item_count=cnt,
                     )
                 )
@@ -166,6 +167,7 @@ class ChatBotRepository:
             raise
         except Exception as exc:
             await db_session.rollback()
+            print(exc)
             logger.exception("Failed to place order for customer_id=%s", customer_id)
             raise Custom_Exception(
                 message="The order could not be created.",
