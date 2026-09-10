@@ -11,16 +11,17 @@ class ChatBotService:
 
     async def chat_bot_service(self, request, customer_id):
         try:
-            logger.info("Processing chat request for customer_id=%s", customer_id)
+            logger.info("Processing chat request")
             result = await self.agent.call_agent(request, customer_id)
-            logger.info("Chat request handled successfully for customer_id=%s", customer_id)
+            logger.info("Chat request handled successfully")
             return result
         except Custom_Exception:
             raise
         except Exception:
-            logger.exception("Chat service failed for customer_id=%s", customer_id)
+            logger.exception("Chat service failed")
             raise Custom_Exception(
                 message="The chat request could not be completed.",
                 code=ErrorCode.INTERNAL_SERVER_ERROR,
                 status_code=HttpStatusCode.INTERNAL_SERVER_ERROR,
             )
+        

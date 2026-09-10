@@ -3,6 +3,8 @@ from __future__ import annotations
 from contextlib import AsyncExitStack
 from typing import AsyncIterator
 from fastapi import Request
+from services.auth_service import AuthService
+from services.user_service import UserService
 from agents.agent import Agent
 from client.client import (
     create_chat_model,
@@ -75,3 +77,10 @@ def get_chatbot_service(request: Request):
     dependencies: ApplicationDependencies = request.app.state.dependencies
     logger.info("Resolved shared ChatBotService dependency")
     return dependencies.chatbot_service
+
+def get_auth_service():
+    return AuthService()
+
+
+def get_user_service() -> UserService:
+    return UserService()

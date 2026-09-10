@@ -1,24 +1,40 @@
 from __future__ import annotations
 
-import logging
-import re
-from time import perf_counter
-from uuid import UUID
-
 import jwt
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
+from repositories.auth_repository import AuthRepository
+from repositories.database import get_db_session
 from settings import config
 from utilities.exceptions.error_codes import ErrorCode
 from utilities.exceptions.http_status import HttpStatusCode
-from utilities.logger import get_logger, request_id_context
+from utilities.logger import get_logger
 
 logger = get_logger(__name__)
 
+PUBLIC_API_PATHS = frozenset(
+    {
+        "/health/live",
+        "/health/ready",
+        "/coffee_shop_bot/api/v1/auth/login",
+        "/coffee_shop_bot/api/v1/auth/refresh",
+        "/coffee_shop_bot/api/v1/user",
+    }
+)
 
-def error_response(request_id: str, message: str, code: str, status_code: int):
+
+def _normalized_path(request: Request) -> str:
+    return request.url.path.rstrip("/") or "/"
+
+
+def error_response(
+    request_id: str,
+    message: str,
+    code: str,
+    status_code: int,
+) -> JSONResponse:
     return JSONResponse(
         status_code=status_code,
         content={
@@ -32,59 +48,162 @@ def error_response(request_id: str, message: str, code: str, status_code: int):
     )
 
 
+async def check_user_rbac(claims: dict, request: Request) -> tuple[bool, str | None]:
+    """Verify JWT identity and role against the active customer record."""
+    user_uuid = claims.get("user_uuid")
+    token_role = claims.get("role")
+
+    if not user_uuid:
+        logger.warning(
+            "Authorization rejected because JWT identity is missing",
+            extra={"request_id": request.state.request_id},
+        )
+        return False, "The authentication token has no user identity."
+
+    try:
+        customer = None
+        async for session in get_db_session():
+            customer = await AuthRepository().get_customer_by_uuid(session, user_uuid)
+            break
+
+        if customer is None:
+            logger.warning(
+                "Authorization rejected because customer identity was not found",
+                extra={"request_id": request.state.request_id},
+            )
+            return False, "The customer identity is not authorized."
+
+        if customer.role != token_role or customer.role != "user":
+            logger.warning(
+                "Authorization rejected because customer role is not authorized",
+                extra={"request_id": request.state.request_id},
+            )
+            return False, "You are not authorized to access this resource."
+
+        request.state.user_uuid = user_uuid
+        request.state.user_role = customer.role
+        logger.info(
+            "Customer identity and role authorization passed",
+            extra={"request_id": request.state.request_id},
+        )
+        return True, None
+    except Exception:
+        logger.exception(
+            "Authorization database check failed",
+            extra={"request_id": request.state.request_id},
+        )
+        return False, "Authorization could not be completed."
+
+
 class AuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
-        request_id = request.headers.get("X-Request-ID", "")
-        request.state.request_id = request_id
-        request_id_context.set(request_id)
-        started_at = perf_counter()
-
-        # if request.url.path.startswith("/coffee_shop_bot/api/v1/"):
-        #     authorization = request.headers.get("Authorization", "")
-            # if not authorization.startswith("Bearer "):
-            #     logger.warning(
-            #         "Authentication rejected because the bearer token is missing",
-            #         extra={"request_id": request_id},
-            #     )
-            #     return error_response(request_id, "Authentication is required.", ErrorCode.UNAUTHORIZED, HttpStatusCode.UNAUTHORIZED)
-            # try:
-            #     claims = jwt.decode(
-            #         authorization.removeprefix("Bearer ").strip(),
-            #         config.jwt_secret,
-            #         algorithms=[config.jwt_algorithm],
-            #     )
-            #     request.state.jwt_claims = claims
-                
-            #     customer_match = re.search(r"/chat_bot/([^/]+)$", request.url.path)
-            #     customer_id = customer_match.group(1) if customer_match else None
-            #     claim_customer_id = claims.get("customer_id", claims.get("sub"))
-            #     if not claim_customer_id:
-            #         logger.warning(
-            #             "Authorization rejected because the token has no customer identity",
-            #             extra={"request_id": request_id},
-            #         )
-            #         return error_response(request_id, "The authentication token has no customer identity.", ErrorCode.UNAUTHORIZED, HttpStatusCode.FORBIDDEN)
-            #     if customer_id and UUID(customer_id) != UUID(str(claim_customer_id)):
-            #         logger.warning(
-            #             "Authorization rejected because the token customer does not match the requested customer",
-            #             extra={"request_id": request_id},
-            #         )
-            #         return error_response(request_id, "You are not authorized to access this customer.", ErrorCode.UNAUTHORIZED, HttpStatusCode.FORBIDDEN)
-            # except (jwt.InvalidTokenError, ValueError, TypeError):
-            #     logger.warning(
-            #         "Authentication rejected because the token is invalid",
-            #         extra={"request_id": request_id},
-            #     )
-            #     return error_response(request_id, "The authentication token is invalid.", ErrorCode.UNAUTHORIZED, HttpStatusCode.UNAUTHORIZED)
-
-        response = await call_next(request)
-        response.headers["X-Request-ID"] = request_id
-        logger.info(
-            "Request completed method=%s path=%s status_code=%s duration_ms=%.2f",
-            request.method,
-            request.url.path,
-            response.status_code,
-            (perf_counter() - started_at) * 1000,
-            extra={"request_id": request_id},
+        request_id = request.headers.get(
+            "X-Request-ID",
+            getattr(request.state, "request_id", ""),
         )
-        return response
+        request.state.request_id = request_id
+        path = _normalized_path(request)
+
+        if request.method == "OPTIONS" or path in PUBLIC_API_PATHS:
+            logger.info(
+                "Public request bypassed authentication",
+                extra={"request_id": request_id},
+            )
+            try:
+                response = await call_next(request)
+                response.headers["X-Request-ID"] = request_id
+                logger.info(
+                    "Public request's response passed AuthMiddleware",
+                    extra={"request_id": request_id},
+                )
+                return response
+            except Exception:
+                logger.exception(
+                    "Public request failed",
+                    extra={"request_id": request_id},
+                )
+                raise
+
+        authorization = request.headers.get("Authorization", "")
+        scheme, _, token = authorization.partition(" ")
+        if scheme.lower() != "bearer" or not token.strip():
+            logger.warning(
+                "Private request rejected because bearer authorization is missing or malformed",
+                extra={"request_id": request_id},
+            )
+            return error_response(
+                request_id,
+                "Authentication is required.",
+                ErrorCode.UNAUTHORIZED,
+                HttpStatusCode.UNAUTHORIZED,
+            )
+
+        try:
+            claims = jwt.decode(
+                token.strip(),
+                config.jwt_secret,
+                algorithms=["HS256"],
+                options={"require": ["user_uuid", "role", "exp"]},
+            )
+            request.state.jwt_claims = claims
+            allowed, message = await check_user_rbac(claims, request)
+            if not allowed:
+                return error_response(
+                    request_id,
+                    message or "You are not authorized to access this resource.",
+                    ErrorCode.UNAUTHORIZED,
+                    HttpStatusCode.FORBIDDEN,
+                )
+
+            logger.info(
+                "Private request authenticated successfully",
+                extra={"request_id": request_id},
+            )
+        except jwt.ExpiredSignatureError:
+            logger.warning(
+                "Private request rejected because access token expired",
+                extra={"request_id": request_id},
+            )
+            return error_response(
+                request_id,
+                "The authentication token has expired.",
+                ErrorCode.UNAUTHORIZED,
+                HttpStatusCode.UNAUTHORIZED,
+            )
+        except jwt.InvalidTokenError:
+            logger.warning(
+                "Private request rejected because access token is invalid",
+                extra={"request_id": request_id},
+            )
+            return error_response(
+                request_id,
+                "The authentication token is invalid.",
+                ErrorCode.UNAUTHORIZED,
+                HttpStatusCode.UNAUTHORIZED,
+            )
+        except Exception:
+            logger.exception(
+                "Unexpected authentication middleware failure",
+                extra={"request_id": request_id},
+            )
+            return error_response(
+                request_id,
+                "Authentication could not be completed.",
+                ErrorCode.INTERNAL_SERVER_ERROR,
+                HttpStatusCode.INTERNAL_SERVER_ERROR,
+            )
+        
+        try:
+            response = await call_next(request)
+            response.headers["X-Request-ID"] = request_id
+            logger.info(
+                "Private request's response passed AuthMiddleware",
+                extra={"request_id": request_id},
+            )
+            return response
+        except Exception:
+            logger.exception(
+                "Private request failed after authentication",
+                extra={"request_id": request_id},
+            )
+            raise

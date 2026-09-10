@@ -21,15 +21,15 @@ class ChatBotRepository:
 
     async def get_customer(self, db_session: AsyncSession, customer_id: UUID):
         try:
-            logger.info("Fetching customer record for customer_id=%s", customer_id)
+            logger.info("Fetching customer record")
             result = await db_session.execute(
-                select(Customer).where(Customer.customer_id == customer_id, Customer.is_active.is_(True))
+                select(Customer).where(Customer.customer_uuid == customer_id, Customer.is_active.is_(True))
             )
             return result.scalar_one_or_none()
         except Custom_Exception:
             raise
         except Exception as exc:
-            logger.exception("Failed to fetch customer customer_id=%s", customer_id)
+            logger.exception("Failed to fetch customer")
             raise Custom_Exception(
                 message="The customer could not be retrieved.",
                 code=ErrorCode.DATABASE_ERROR,
@@ -38,7 +38,7 @@ class ChatBotRepository:
 
     async def get_order(self, db_session: AsyncSession, customer_id: int):
         try:
-            logger.info("Fetching latest order for customer_id=%s", customer_id)
+            logger.info("Fetching latest order")
             result = await db_session.execute(
                 select(Order)
                 .where(Order.customer_id == customer_id, Order.is_active.is_(True))
@@ -49,7 +49,7 @@ class ChatBotRepository:
         except Custom_Exception:
             raise
         except Exception as exc:
-            logger.exception("Failed to fetch order for customer_id=%s", customer_id)
+            logger.exception("Failed to fetch order")
             raise Custom_Exception(
                 message="The order could not be retrieved.",
                 code=ErrorCode.DATABASE_ERROR,
@@ -58,7 +58,7 @@ class ChatBotRepository:
 
     async def get_order_details(self, db_session: AsyncSession, order_id: int):
         try:
-            logger.info("Fetching order items for order_id=%s", order_id)
+            logger.info("Fetching order items")
             result = await db_session.execute(
                 select(Order_Item).where(Order_Item.order_id == order_id, Order_Item.is_active.is_(True))
             )
@@ -66,7 +66,7 @@ class ChatBotRepository:
         except Custom_Exception:
             raise
         except Exception as exc:
-            logger.exception("Failed to fetch order details for order_id=%s", order_id)
+            logger.exception("Failed to fetch order details")
             raise Custom_Exception(
                 message="The order details could not be retrieved.",
                 code=ErrorCode.DATABASE_ERROR,
@@ -75,7 +75,7 @@ class ChatBotRepository:
 
     async def validate_item(self, db_session: AsyncSession, item_id: int):
         try:
-            logger.info("Validating menu item item_id=%s", item_id)
+            logger.info("Validating menu item")
             result = await db_session.execute(
                 select(Item).where(Item.item_id == item_id, Item.is_active.is_(True))
             )
@@ -83,7 +83,7 @@ class ChatBotRepository:
         except Custom_Exception:
             raise
         except Exception as exc:
-            logger.exception("Failed to validate item item_id=%s", item_id)
+            logger.exception("Failed to validate menu item")
             raise Custom_Exception(
                 message="The menu item could not be validated.",
                 code=ErrorCode.DATABASE_ERROR,
@@ -92,7 +92,7 @@ class ChatBotRepository:
 
     async def validate_order(self, db_session: AsyncSession, order_id: int):
         try:
-            logger.info("Validating order order_id=%s", order_id)
+            logger.info("Validating order")
             result = await db_session.execute(
                 select(Order).where(Order.order_id == order_id, Order.is_active.is_(True))
             )
@@ -100,7 +100,7 @@ class ChatBotRepository:
         except Custom_Exception:
             raise
         except Exception as exc:
-            logger.exception("Failed to validate order order_id=%s", order_id)
+            logger.exception("Failed to validate order")
             raise Custom_Exception(
                 message="The order could not be validated.",
                 code=ErrorCode.DATABASE_ERROR,
@@ -129,7 +129,7 @@ class ChatBotRepository:
 
     async def place_order_repository(self, db_session: AsyncSession, item_id, count, total_amount, customer_id: UUID):
         try:
-            logger.info("Creating order for customer_id=%s", customer_id)
+            logger.info("Creating order")
             customer = await self.get_customer(db_session, customer_id)
             if customer is None:
                 raise Custom_Exception(
@@ -139,7 +139,7 @@ class ChatBotRepository:
                 )
 
             new_order = Order(
-                customer_id=customer_id,
+                customer_id=customer.customer_id,
                 total_amount=total_amount,
                 created_by=customer.name,
             )
@@ -156,7 +156,7 @@ class ChatBotRepository:
                 )
 
             await db_session.commit()
-            logger.info("Order placed successfully. order_id=%s customer_id=%s", new_order.order_id, customer_id)
+            logger.info("Order placed successfully")
             return {
                 "order_id": new_order.order_id,
                 "total_amount": total_amount,
@@ -167,8 +167,7 @@ class ChatBotRepository:
             raise
         except Exception as exc:
             await db_session.rollback()
-            print(exc)
-            logger.exception("Failed to place order for customer_id=%s", customer_id)
+            logger.exception("Failed to place order")
             raise Custom_Exception(
                 message="The order could not be created.",
                 code=ErrorCode.DATABASE_ERROR,
@@ -177,7 +176,7 @@ class ChatBotRepository:
 
     async def get_order_detail_repository(self, db_session: AsyncSession, customer_id):
         try:
-            logger.info("Retrieving order details for customer_id=%s", customer_id)
+            logger.info("Retrieving order details")
             order = await self.get_order(db_session, customer_id)
             if not order:
                 return {"message": "There is no order for this customer."}
@@ -207,7 +206,7 @@ class ChatBotRepository:
         except Custom_Exception:
             raise
         except Exception as exc:
-            logger.exception("Failed to fetch order detail for customer_id=%s", customer_id)
+            logger.exception("Failed to fetch order details")
             raise Custom_Exception(
                 message="The order details could not be retrieved.",
                 code=ErrorCode.DATABASE_ERROR,

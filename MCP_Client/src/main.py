@@ -7,6 +7,8 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from routers.router import router
 from routers.default_router import router as default_router
+from routers.auth_router import router as auth_router
+from routers.user_router import router as user_router
 from models.APIresponse import APIResponse, Error
 from utilities.exceptions.custom_exception import Custom_Exception
 from utilities.exceptions.error_codes import ErrorCode
@@ -16,14 +18,13 @@ from settings import config
 from services.dependency import lifespan_dependencies
 from utilities.logger import get_logger
 from middleware.auth import AuthMiddleware
+from middleware.context import ContextMiddleware
 from repositories.database import Database
 
 logger = get_logger(__name__)
 
 async def lifespan(app: FastAPI):
     logger.info("Starting application lifespan")
-    migration = Migration()
-    await migration.create_tables()
     try:
         async for dependencies in lifespan_dependencies():
             app.state.dependencies = dependencies
@@ -45,24 +46,24 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    # allow_origins=config.allowed_origins,
     allow_methods=["*"],
     allow_headers=["*"]
 )
-app.add_middleware(AuthMiddleware)
 
-app.include_router(router)
+app.add_middleware(AuthMiddleware)
+app.add_middleware(ContextMiddleware)
+
 app.include_router(default_router)
+app.include_router(auth_router)
+app.include_router(user_router)
+app.include_router(router)
 
 # EXCEPTION HANDLERS 
 @app.exception_handler(Custom_Exception)
 async def custom_exception_handler(request: Request, exc: Custom_Exception):
     exc.request_id = request.state.request_id
     logger.error(
-        "Application error while handling method=%s path=%s error_code=%s",
-        request.method,
-        request.url.path,
-        exc.code,
+        "Application error while handling request",
         extra={
             "request_id": request.state.request_id,
             "exception": str(exc),
@@ -78,9 +79,7 @@ async def custom_exception_handler(request: Request, exc: Custom_Exception):
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     request_id = getattr(request.state, "request_id", None)
     logger.warning(
-        "Request validation failed method=%s path=%s",
-        request.method,
-        request.url.path,
+        "Request validation failed",
         extra={"request_id": request_id},
     )
     errors = []

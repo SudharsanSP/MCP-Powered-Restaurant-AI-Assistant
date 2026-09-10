@@ -4,7 +4,7 @@ from uuid import UUID
 from repositories.repository import ChatBotRepository
 from routers.router import router
 from utilities.exceptions.custom_exception import Custom_Exception
-from utilities.logger import get_logger, with_async_request_id, with_request_id
+from utilities.logger import get_logger, with_async_request_id
 
 logger = get_logger(__name__)
 
@@ -53,8 +53,11 @@ async def place_order_tool(item_id: list[int], count: list[int], customer_id: UU
     try:
         if not item_id or len(item_id) != len(count) or any(value <= 0 for value in count):
             raise Custom_Exception("Each item must have a positive quantity.", "VALIDATION_ERROR", 400)
-        logger.info("Processing order placement for customer_id=%s with %s item(s)", customer_id, len(item_id))
+        logger.info("Processing order placement")
         async for db_session in get_db_session():
+            # customer = await repository.get_customer(db_session, customer_id)
+            # if not customer:
+            #     raise Custom_Exception("Error occured in validating Customer ID.", "INVALID_DATA", 400)
             total_amount = 0
             for item, cnt in zip(item_id, count):
                 product = await repository.validate_item(db_session, item)
@@ -67,12 +70,12 @@ async def place_order_tool(item_id: list[int], count: list[int], customer_id: UU
                 total_amount += int(product.price) * cnt
 
             result = await repository.place_order_repository(db_session, item_id, count, total_amount, customer_id)
-            logger.info("Order placement completed for customer_id=%s", customer_id)
+            logger.info("Order placement completed")
             return result
     except Custom_Exception:
         raise
     except Exception:
-        logger.exception("Failed to place order for customer_id=%s", customer_id)
+        logger.exception("Failed to place order")
         raise Custom_Exception("The order could not be created.", "INTERNAL_SERVER_ERROR", 500)
 
 
@@ -83,13 +86,16 @@ async def get_order_tool(customer_id: UUID):
     Use when the customer wants to view the details or the status of their order.
     Must get the customer_id from customer to check the status of their order & order_id is not mandatory"""
     try:
-        logger.info("Fetching order details for customer_id=%s", customer_id)
+        logger.info("Fetching order details")
         async for db_session in get_db_session():
-            result = await repository.get_order_detail_repository(db_session, customer_id)
-            logger.info("Order details retrieved for customer_id=%s", customer_id)
+            customer = await repository.get_customer(db_session, customer_id)
+            if not customer:
+                raise Custom_Exception("Error occured in validating Customer ID.", "INVALID_DATA", 400)
+            result = await repository.get_order_detail_repository(db_session, customer.customer_id)
+            logger.info("Order details retrieved")
             return result
     except Custom_Exception:
         raise
     except Exception:
-        logger.exception("Failed to fetch order details for customer_id=%s", customer_id)
+        logger.exception("Failed to fetch order details")
         raise Custom_Exception("Order details could not be retrieved.", "INTERNAL_SERVER_ERROR", 500)

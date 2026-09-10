@@ -11,12 +11,7 @@ logger = get_logger(__name__)
 
 
 def create_chat_model(max_tokens: int, temperature: float):
-    logger.info(
-        "Creating shared Gemini model=%s with max_output_tokens=%s temperature=%s",
-        config.gemini_model,
-        max_tokens,
-        temperature,
-    )
+    logger.info("Creating shared Gemini model")
     return ChatGoogleGenerativeAI(
         model=config.gemini_model,
         google_api_key=config.google_api_key,
@@ -26,7 +21,7 @@ def create_chat_model(max_tokens: int, temperature: float):
 
 
 def create_mcp_client():
-    logger.info("Creating shared MCP client for URL=%s", config.mcp_url)
+    logger.info("Creating shared MCP client")
     return MultiServerMCPClient(
         {
             "my_server": {

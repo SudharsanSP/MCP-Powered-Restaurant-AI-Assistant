@@ -47,7 +47,7 @@ class RequestIdFilter(logging.Filter):
 
 
 @contextmanager
-def request_context(request_id: str | None = None) -> Iterator[str]:
+def request_context(function: Callable[P, R], request_id: str | None = None) -> Iterator[str]:
     active_request_id = request_id or str(uuid.uuid4())
     token = _request_id.set(active_request_id)
     try:
@@ -66,7 +66,7 @@ def request_context(request_id: str | None = None) -> Iterator[str]:
 def with_async_request_id(function: Callable[P, R]) -> Callable[P, R]:
     @functools.wraps(function)
     async def wrapped(*args: P.args, **kwargs: P.kwargs):
-        with request_context():
+        with request_context(function):
             return await function(*args, **kwargs)  # type: ignore[misc]
 
     return wrapped

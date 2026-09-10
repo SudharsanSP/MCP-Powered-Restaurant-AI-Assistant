@@ -21,6 +21,8 @@ class Config:
     mcp_url:str
     jwt_secret: str
     jwt_algorithm: str
+    access_token_expire_minutes: int
+    refresh_token_expire_days: int
     allowed_origins: list[str]
 
 def get_config():
@@ -40,6 +42,8 @@ def get_config():
         mcp_url=os.getenv('MCP_SERVER_URL'),
         jwt_secret=os.getenv('JWT_SECRET', ''),
         jwt_algorithm=os.getenv('JWT_ALGORITHM', 'HS256'),
+        access_token_expire_minutes=int(os.getenv('ACCESS_TOKEN_EXPIRE_MINUTES', '30')),
+        refresh_token_expire_days=int(os.getenv('REFRESH_TOKEN_EXPIRE_DAYS', '7')),
         allowed_origins=[origin.strip() for origin in os.getenv('ALLOWED_ORIGINS', '').split(',') if origin.strip()],
     )
 config= get_config()
