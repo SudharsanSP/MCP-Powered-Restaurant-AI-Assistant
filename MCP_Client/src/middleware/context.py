@@ -1,18 +1,13 @@
 from __future__ import annotations
 
 import logging
-import re
-from time import perf_counter
 from uuid import UUID
-
-import jwt
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 
 from utilities.logger import get_logger, request_id_context
 
 logger = get_logger(__name__)
-
 
 class ContextMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):

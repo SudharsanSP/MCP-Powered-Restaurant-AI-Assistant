@@ -1,4 +1,5 @@
 from __future__ import annotations
+from contextvars import ContextVar
 
 import jwt
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -24,10 +25,10 @@ PUBLIC_API_PATHS = frozenset(
     }
 )
 
+customer_id_context: ContextVar[str] = ContextVar("customer_id", default="-")
 
 def _normalized_path(request: Request) -> str:
     return request.url.path.rstrip("/") or "/"
-
 
 def error_response(
     request_id: str,
@@ -47,10 +48,10 @@ def error_response(
         headers={"X-Request-ID": request_id},
     )
 
-
 async def check_user_rbac(claims: dict, request: Request) -> tuple[bool, str | None]:
     """Verify JWT identity and role against the active customer record."""
     user_uuid = claims.get("user_uuid")
+    customer_id_context.set(user_uuid)
     token_role = claims.get("role")
 
     if not user_uuid:
@@ -102,6 +103,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
             getattr(request.state, "request_id", ""),
         )
         request.state.request_id = request_id
+
         path = _normalized_path(request)
 
         if request.method == "OPTIONS" or path in PUBLIC_API_PATHS:

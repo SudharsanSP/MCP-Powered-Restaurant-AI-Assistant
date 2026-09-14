@@ -1,8 +1,9 @@
 from uuid import UUID
 from langchain.agents import create_agent
-from langchain.agents.middleware import PIIMiddleware, SummarizationMiddleware
+from langchain.agents.middleware import PIIMiddleware, SummarizationMiddleware, HumanInTheLoopMiddleware
 from langchain.agents.structured_output import ToolStrategy
 from langchain.agents.structured_output import StructuredOutputValidationError, MultipleStructuredOutputsError
+from langgraph.types import Command
 from utilities.exceptions.custom_exception import Custom_Exception
 from utilities.exceptions.error_codes import ErrorCode
 from utilities.exceptions.http_status import HttpStatusCode
@@ -11,6 +12,21 @@ from agents.prompt import Prompt
 from utilities.logger import get_logger
 
 logger = get_logger(__name__)
+
+@staticmethod
+def custom_error_handler(error: Exception):
+    if isinstance(error, StructuredOutputValidationError):
+        logger.warning("Structured output validation failed")
+        return "Schema validation failed. Check filed constraints and retry"
+    elif isinstance(error, MultipleStructuredOutputsError):
+        logger.warning("Agent returned multiple structured outputs")
+        return "Multiple outputs were returned, pick the single format that is more relevant"
+    else:
+        logger.error(
+            "Agent returned an unexpected structured output error",
+            extra={"exception": str(error)},
+        )
+        return f"Unexpected error: {str(error)}"
 
 class Agent:
     def __init__(self, agent, mcp_client):
@@ -42,7 +58,13 @@ class Agent:
                     apply_to_input=True,
                     apply_to_output=True,
                 ),
-            ],  
+                HumanInTheLoopMiddleware(
+                    interrupt_on={
+                        "place_order_tool":{"allowed_decisions":["approve", "reject"]}
+                    },
+                    description_prefix="Approval required before placing order",
+                )
+            ],
             # response_format=ToolStrategy(
             #     schema=OrderResponse | StatusResponse | MenuResponse,
             #     handle_errors=custom_error_handler,
@@ -51,22 +73,8 @@ class Agent:
             checkpointer=checkpointer,
         )
 
-    @staticmethod
-    def custom_error_handler(error: Exception):
-        if isinstance(error, StructuredOutputValidationError):
-            logger.warning("Structured output validation failed")
-            return "Schema validation failed. Check filed constraints and retry"
-        elif isinstance(error, MultipleStructuredOutputsError):
-            logger.warning("Agent returned multiple structured outputs")
-            return "Multiple outputs were returned, pick the single format that is more relevant"
-        else:
-            logger.error(
-                "Agent returned an unexpected structured output error",
-                extra={"exception": str(error)},
-            )
-            return f"Unexpected error: {str(error)}"
 
-    async def call_agent(self, request, customer_id: UUID):
+    async def call_agent(self, request, thread_id: UUID, customer_id: UUID):
         try:
             logger.info("Starting agent execution")
             messages = [
@@ -78,8 +86,11 @@ class Agent:
 
             result = await self.agent.ainvoke(
                 {"messages": messages},
-                {"configurable": {"thread_id": str(customer_id)}},
+                {"configurable": {"thread_id": str(thread_id)}},
             )
+            if "__interrupt__" in result:
+                logger.info("Agent returned response with interruption")
+                return  result["__interrupt__"][0].value["action_requests"][0]["description"]
             logger.info("Agent returned structured result")
             # return result.get("structured_response")
             return result["messages"][-1].content[0]["text"]
@@ -92,3 +103,27 @@ class Agent:
                 code=ErrorCode.INTERNAL_SERVER_ERROR,
                 status_code=HttpStatusCode.INTERNAL_SERVER_ERROR,
             )
+
+    async def reinvoke_agent(self, decision, thread_id: UUID, customer_id: UUID):
+            try:
+                logger.info("Starting agent re-execution")
+                result = await self.agent.ainvoke(
+                    Command(
+                        resume={
+                            "decisions": [decision]
+                        }
+                    ),
+                    {"configurable": {"thread_id": str(thread_id)}},
+                )
+                logger.info("Agent returned structured result")
+                # return result.get("structured_response")
+                return result["messages"][-1].content[0]["text"]
+            except Custom_Exception:
+                raise
+            except Exception:
+                logger.exception("Agent execution failed")
+                raise Custom_Exception(
+                message="The assistant could not complete the request.",
+                    code=ErrorCode.INTERNAL_SERVER_ERROR,
+                    status_code=HttpStatusCode.INTERNAL_SERVER_ERROR,
+                )

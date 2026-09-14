@@ -5,7 +5,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from routers.router import router
+from routers.router import router as agent_router
 from routers.default_router import router as default_router
 from routers.auth_router import router as auth_router
 from routers.user_router import router as user_router
@@ -56,7 +56,7 @@ app.add_middleware(ContextMiddleware)
 app.include_router(default_router)
 app.include_router(auth_router)
 app.include_router(user_router)
-app.include_router(router)
+app.include_router(agent_router)
 
 # EXCEPTION HANDLERS 
 @app.exception_handler(Custom_Exception)
