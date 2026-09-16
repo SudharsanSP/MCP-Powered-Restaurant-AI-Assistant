@@ -17,14 +17,6 @@ class Migration:
         try:
             async with self.db.engine.begin() as conn:
                 await conn.run_sync(Base.metadata.create_all)
-                await conn.execute(text(
-                    "ALTER TABLE customers "
-                    "ADD COLUMN IF NOT EXISTS password_hash VARCHAR(128) NOT NULL DEFAULT ''"
-                ))
-                await conn.execute(text(
-                    "ALTER TABLE customers "
-                    "ADD COLUMN IF NOT EXISTS role VARCHAR(32) NOT NULL DEFAULT 'user'"
-                ))
             logger.info("Database table migration completed successfully")
         except Exception:
             logger.exception("Database table migration failed")

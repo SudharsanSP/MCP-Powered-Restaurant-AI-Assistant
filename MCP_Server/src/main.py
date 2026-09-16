@@ -3,7 +3,7 @@ import sys
 
 from fastmcp import FastMCP
 from migration.migration import Migration
-
+from settings import config
 
 async def main():
     migration = Migration()
@@ -15,7 +15,7 @@ async def main():
     mcp.mount(router)
     await mcp.run_async(
         transport="streamable-http",
-        port=8001
+        port=config.port
     )
 
 

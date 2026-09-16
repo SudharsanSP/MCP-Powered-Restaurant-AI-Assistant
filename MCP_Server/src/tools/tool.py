@@ -55,9 +55,13 @@ async def place_order_tool(item_id: list[int], count: list[int], customer_id: UU
             raise Custom_Exception("Each item must have a positive quantity.", "VALIDATION_ERROR", 400)
         logger.info("Processing order placement")
         async for db_session in get_db_session():
-            # customer = await repository.get_customer(db_session, customer_id)
-            # if not customer:
-            #     raise Custom_Exception("Error occured in validating Customer ID.", "INVALID_DATA", 400)
+            customer = await self.get_customer(db_session, customer_id)
+            if customer is None:
+                raise Custom_Exception(
+                    message="Customer not found for the provided customer_id",
+                    code=ErrorCode.USER_NOT_FOUND,
+                    status_code=HttpStatusCode.NOT_FOUND,
+                )
             total_amount = 0
             for item, cnt in zip(item_id, count):
                 product = await repository.validate_item(db_session, item)

@@ -5,6 +5,7 @@ from typing import AsyncIterator
 from fastapi import Request
 from services.auth_service import AuthService
 from services.user_service import UserService
+from services.admin_service import AdminService
 from agents.agent import Agent
 from client.client import (
     create_chat_model,
@@ -81,6 +82,8 @@ def get_chatbot_service(request: Request):
 def get_auth_service():
     return AuthService()
 
-
-def get_user_service() -> UserService:
+def get_user_service():
     return UserService()
+
+def get_admin_service():
+    return AdminService()

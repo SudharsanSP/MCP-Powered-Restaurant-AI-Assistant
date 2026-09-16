@@ -5,7 +5,7 @@ from typing import Optional, Literal
 from pydantic import BaseModel, Field
 
 class UserQuery(BaseModel):
-    user_query: str
+    user_query: str = Field(min_length=1, max_length=1000)
 
 class HITLRequest(BaseModel):
     decision: Literal["approve", "reject"]

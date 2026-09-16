@@ -27,3 +27,5 @@ Thumbs.db
 
 # uv
 .venv/
+
+CODEBASE_ANALYSIS.md

@@ -130,13 +130,6 @@ class ChatBotRepository:
     async def place_order_repository(self, db_session: AsyncSession, item_id, count, total_amount, customer_id: UUID):
         try:
             logger.info("Creating order")
-            customer = await self.get_customer(db_session, customer_id)
-            if customer is None:
-                raise Custom_Exception(
-                    message="Customer not found for the provided customer_id",
-                    code=ErrorCode.USER_NOT_FOUND,
-                    status_code=HttpStatusCode.NOT_FOUND,
-                )
 
             new_order = Order(
                 customer_id=customer.customer_id,
