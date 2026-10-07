@@ -7,6 +7,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 from repositories.auth_repository import AuthRepository
+from repositories.admin_repository import AdminRepository
 from repositories.database import get_db_session
 from settings import config
 from utilities.exceptions.error_codes import ErrorCode
@@ -19,7 +20,8 @@ PUBLIC_API_PATHS = frozenset(
     {
         "/health/live",
         "/health/ready",
-        "/coffee_shop_bot/api/v1/auth/login",
+        "/coffee_shop_bot/api/v1/auth/customer/login",
+        "/coffee_shop_bot/api/v1/auth/admin/login",
         "/coffee_shop_bot/api/v1/auth/refresh",
         "/coffee_shop_bot/api/v1/user",
     }
@@ -53,48 +55,81 @@ async def check_user_rbac(claims: dict, request: Request) -> tuple[bool, str | N
     user_uuid = claims.get("user_uuid")
     customer_id_context.set(user_uuid)
     token_role = claims.get("role")
-
     if not user_uuid:
         logger.warning(
             "Authorization rejected because JWT identity is missing",
             extra={"request_id": request.state.request_id},
         )
         return False, "The authentication token has no user identity."
+    if token_role == "user":
+        try:
+            customer = None
+            async for session in get_db_session():
+                customer = await AuthRepository().get_customer_by_uuid(session, user_uuid)
+                break
 
-    try:
-        customer = None
-        async for session in get_db_session():
-            customer = await AuthRepository().get_customer_by_uuid(session, user_uuid)
-            break
+            if customer is None:
+                logger.warning(
+                    "Authorization rejected because customer identity was not found",
+                    extra={"request_id": request.state.request_id},
+                )
+                return False, "The customer identity is not authorized."
 
-        if customer is None:
-            logger.warning(
-                "Authorization rejected because customer identity was not found",
+            if customer.role != token_role or customer.role != "user":
+                logger.warning(
+                    "Authorization rejected because customer role is not authorized",
+                    extra={"request_id": request.state.request_id},
+                )
+                return False, "You are not authorized to access this resource."
+
+            request.state.user_uuid = user_uuid
+            request.state.user_role = customer.role
+            logger.info(
+                "Customer identity and role authorization passed",
                 extra={"request_id": request.state.request_id},
             )
-            return False, "The customer identity is not authorized."
-
-        if customer.role != token_role or customer.role != "user":
-            logger.warning(
-                "Authorization rejected because customer role is not authorized",
+            return True, None
+        except Exception:
+            logger.exception(
+                "Authorization database check failed",
                 extra={"request_id": request.state.request_id},
             )
-            return False, "You are not authorized to access this resource."
+            return False, "Authorization could not be completed."
+    
+    elif token_role == "admin":
+        try:
+            user = None
+            async for session in get_db_session():
+                user = await AuthRepository().get_user_by_uuid(session, user_uuid)
+                break
 
-        request.state.user_uuid = user_uuid
-        request.state.user_role = customer.role
-        logger.info(
-            "Customer identity and role authorization passed",
-            extra={"request_id": request.state.request_id},
-        )
-        return True, None
-    except Exception:
-        logger.exception(
-            "Authorization database check failed",
-            extra={"request_id": request.state.request_id},
-        )
-        return False, "Authorization could not be completed."
+            if user is None:
+                logger.warning(
+                    "Authorization rejected because admin identity was not found",
+                    extra={"request_id": request.state.request_id},
+                )
+                return False, "The admin identity is not authorized."
 
+            if user.role != token_role or user.role != "admin":
+                logger.warning(
+                    "Authorization rejected because user role is not authorized",
+                    extra={"request_id": request.state.request_id},
+                )
+                return False, "You are not authorized to access this resource."
+
+            request.state.user_uuid = user_uuid
+            request.state.user_role = user.role
+            logger.info(
+                "Admin identity and role authorization passed",
+                extra={"request_id": request.state.request_id},
+            )
+            return True, None
+        except Exception:
+            logger.exception(
+                "Authorization database check failed",
+                extra={"request_id": request.state.request_id},
+            )
+            return False, "Authorization could not be completed."
 
 class AuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):

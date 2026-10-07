@@ -7,6 +7,20 @@ from sqlalchemy.orm import relationship
 import enum
 
 Base = declarative_base()
+class User(Base):
+    __tablename__ = "users"
+    user_id = Column(Integer, primary_key=True)
+    user_uuid = Column(UUID(as_uuid=True), default=uuid.uuid4)
+    name = Column(String, nullable=False)
+    email = Column(String, nullable=False, unique=True)
+    password_hash = Column(String(128), nullable=False)
+    role = Column(String(32), nullable=False, default="admin", server_default="admin")
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, server_default=text("CURRENT_TIMESTAMP"))
+    created_by = Column(String, server_default=text("'ADMIN'"))
+    updated_at = Column(DateTime, nullable=True)
+    updated_by = Column(String, nullable= True)
+
 class Customer(Base):
     __tablename__ = "customers"
     customer_id = Column(Integer, primary_key=True)

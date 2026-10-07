@@ -13,16 +13,16 @@ from utilities.logger import get_logger
 
 logger = get_logger(__name__)
 
-router = APIRouter(prefix="/coffee_shop_bot/api/v1")
+router = APIRouter(prefix="/coffee_shop_bot/api/v1/auth")
 
-@router.post("/auth/login")
+@router.post("/customer/login")
 async def login(
         payload: LoginRequest, 
         service: AuthService = Depends(get_auth_service)
     ):
         try:
             logger.info("Login endpoint requested")
-            result = await service.login(payload)
+            result = await service.customer_login(payload)
             return JSONResponse(status_code=HttpStatusCode.OK, content=jsonable_encoder(APIResponse(data=result, code=HttpStatusCode.OK, message="Login successful").to_dict()))
         except Custom_Exception:
             raise
@@ -30,7 +30,23 @@ async def login(
             logger.exception("Unhandled error in login endpoint")
             raise Custom_Exception("The login request could not be completed.", ErrorCode.INTERNAL_SERVER_ERROR, HttpStatusCode.INTERNAL_SERVER_ERROR)
 
-@router.post("/auth/refresh")
+@router.post("/admin/login")
+async def login(
+        payload: LoginRequest, 
+        service: AuthService = Depends(get_auth_service)
+    ):
+        try:
+            logger.info("Login endpoint requested")
+            result = await service.admin_login(payload)
+            return JSONResponse(status_code=HttpStatusCode.OK, content=jsonable_encoder(APIResponse(data=result, code=HttpStatusCode.OK, message="Login successful").to_dict()))
+        except Custom_Exception:
+            raise
+        except Exception:
+            logger.exception("Unhandled error in login endpoint")
+            raise Custom_Exception("The login request could not be completed.", ErrorCode.INTERNAL_SERVER_ERROR, HttpStatusCode.INTERNAL_SERVER_ERROR)
+
+
+@router.post("/refresh")
 async def refresh(
         payload: RefreshRequest,
         service: AuthService = Depends(get_auth_service)
@@ -46,7 +62,7 @@ async def refresh(
             raise Custom_Exception("The refresh request could not be completed.", ErrorCode.INTERNAL_SERVER_ERROR, HttpStatusCode.INTERNAL_SERVER_ERROR)
 
 
-@router.post("/auth/logout")
+@router.post("/logout")
 async def logout(
         payload: LogoutRequest, 
         service: AuthService = Depends(get_auth_service)

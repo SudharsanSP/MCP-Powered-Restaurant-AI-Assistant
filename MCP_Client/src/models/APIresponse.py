@@ -1,5 +1,6 @@
 # models/api_response_dto.py
 from typing import List, Optional
+from datetime import datetime
 
 class Error:
     def __init__(self, code: str, message: str, error_code_id: Optional[str] = None):
@@ -20,11 +21,13 @@ class APIResponse:
         code: Optional[int] = None,
         message: Optional[str] = None,
         request_id: Optional[str] = None,
+        timestamp: Optional[str] = None
     ):
         self.data = data or []
         self.errors = errors or []
         self.code = code or 200
         self.request_id = request_id
+        self.timestamp = timestamp or datetime.now()
 
         # Use provided message, or generate one
         if message is not None:

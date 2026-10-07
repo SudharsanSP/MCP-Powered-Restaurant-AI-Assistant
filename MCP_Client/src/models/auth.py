@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict, Field, EmailStr
-
+from typing import Optional
 
 class LoginRequest(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True)
@@ -21,11 +21,14 @@ class LogoutRequest(BaseModel):
     refresh_token: str = Field(..., min_length=32, max_length=256)
 
 
-class LoginResponse(BaseModel):
+class CustomerLoginResponse(BaseModel):
     access_token: str
-    refresh_token: str
+    refresh_token: str 
     expires_in: int
 
+class AdminLoginResponse(BaseModel):
+    access_token: str
+    expires_in: int
 
 class RefreshResponse(BaseModel):
     access_token: str

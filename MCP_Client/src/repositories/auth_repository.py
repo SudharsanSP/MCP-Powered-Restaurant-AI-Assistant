@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from repositories.schema.coffee_shop_models import Customer
+from repositories.schema.coffee_shop_models import Customer, User
 from utilities.exceptions.custom_exception import Custom_Exception
 from utilities.exceptions.error_codes import ErrorCode
 from utilities.exceptions.http_status import HttpStatusCode
@@ -19,7 +19,8 @@ class AuthRepository:
         try:
             logger.info("Checking customer by email")
             result = await session.execute(
-                select(Customer).where(Customer.email == email, Customer.is_active.is_(True))
+                select(Customer)
+                .where(Customer.email == email, Customer.is_active.is_(True))
             )
             return result.scalar_one_or_none()
         except Custom_Exception:
@@ -29,6 +30,25 @@ class AuthRepository:
             raise Custom_Exception(
                 "Unable to process login.", ErrorCode.DATABASE_ERROR, HttpStatusCode.INTERNAL_SERVER_ERROR
             )
+
+    async def get_user_by_email(self, session: AsyncSession, email: str):
+        try:
+            logger.info("Checking user by email")
+            result = await session.execute(
+                select(User)
+                .where(User.email == email, User.is_active.is_(True))
+            )
+            return result.scalar_one_or_none()
+        except Custom_Exception:
+            raise
+        except Exception:
+            logger.exception("Failed to find user by email")
+            raise Custom_Exception(
+                "Unable to process login.", 
+                ErrorCode.DATABASE_ERROR,
+                HttpStatusCode.INTERNAL_SERVER_ERROR
+            )
+
 
     async def get_customer_by_uuid(self, session: AsyncSession, customer_uuid: str) -> Customer | None:
         try:
@@ -115,4 +135,23 @@ class AuthRepository:
             raise Custom_Exception(
                 "Unable to validate refresh token.", ErrorCode.DATABASE_ERROR, HttpStatusCode.INTERNAL_SERVER_ERROR
             )
-    
+
+    async def get_user_by_uuid(self, session: AsyncSession, user_uuid: str) -> User | None:
+        try:
+            logger.info("Checking user identity")
+            result = await session.execute(
+                select(User).where(
+                    User.user_uuid == user_uuid,
+                    User.is_active.is_(True),
+                )
+            )
+            return result.scalar_one_or_none()
+        except Custom_Exception:
+            raise
+        except Exception:
+            logger.exception("Failed to check user identity")
+            raise Custom_Exception(
+                "Unable to validate user identity.",
+                ErrorCode.DATABASE_ERROR,
+                HttpStatusCode.INTERNAL_SERVER_ERROR,
+            )

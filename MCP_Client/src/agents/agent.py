@@ -60,9 +60,11 @@ class Agent:
                 ),
                 HumanInTheLoopMiddleware(
                     interrupt_on={
-                        "place_order_tool":{"allowed_decisions":["approve", "reject"]}
+                        "place_order_tool": {"allowed_decisions": ["approve", "reject"]},
+                        "update_order_tool": {"allowed_decisions": ["approve", "reject"]},
+                        "cancel_order_tool": {"allowed_decisions": ["approve", "reject"]},
                     },
-                    description_prefix="Approval required before placing order",
+                    description_prefix="Approval required before modifying order",
                 )
             ],
             # response_format=ToolStrategy(
@@ -88,6 +90,7 @@ class Agent:
                 {"messages": messages},
                 {"configurable": {"thread_id": str(thread_id)}},
             )
+            print(result)
             if "__interrupt__" in result:
                 logger.info("Agent returned response with interruption")
                 return  result["__interrupt__"][0].value["action_requests"][0]["description"]
@@ -116,6 +119,7 @@ class Agent:
                     {"configurable": {"thread_id": str(thread_id)}},
                 )
                 logger.info("Agent returned structured result")
+                print(result)
                 # return result.get("structured_response")
                 return result["messages"][-1].content[0]["text"]
             except Custom_Exception:

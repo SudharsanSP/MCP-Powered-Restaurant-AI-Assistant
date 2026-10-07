@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 import secrets
 
-from models.auth import LoginRequest, LoginResponse, LogoutRequest, LogoutResponse, RefreshRequest, RefreshResponse
+from models.auth import LoginRequest, CustomerLoginResponse, AdminLoginResponse, LogoutRequest, LogoutResponse, RefreshRequest, RefreshResponse
 from repositories.auth_repository import AuthRepository
 from repositories.database import get_db_session
 from settings import config
@@ -21,10 +21,10 @@ class AuthService:
     def __init__(self) -> None:
         self.repository = AuthRepository()
 
-    async def login(self, payload: LoginRequest) -> LoginResponse:
+    async def customer_login(self, payload: LoginRequest) -> CustomerLoginResponse:
         async for session in get_db_session():
             try:
-                logger.info("Starting login")
+                logger.info("Starting customer login")
                 customer = await self.repository.get_customer_by_email(session, payload.email)
                 if customer is None or not verify_value(payload.password, customer.password_hash):
                     raise Custom_Exception("Invalid email or password.", ErrorCode.UNAUTHORIZED, HttpStatusCode.UNAUTHORIZED)
@@ -38,9 +38,34 @@ class AuthService:
                 )
                 await session.commit()
                 logger.info("Login completed")
-                return LoginResponse(
+                return CustomerLoginResponse(
                     access_token=create_access_token(str(customer.customer_uuid), customer.role),
                     refresh_token=refresh_token,
+                    expires_in=config.access_token_expire_minutes * 60,
+                )
+            except Custom_Exception:
+                await session.rollback()
+                raise
+            except Exception:
+                await session.rollback()
+                logger.exception("Login failed")
+                raise Custom_Exception("Unable to complete login.", ErrorCode.INTERNAL_SERVER_ERROR, HttpStatusCode.INTERNAL_SERVER_ERROR)
+
+    async def admin_login(self, payload: LoginRequest) -> AdminLoginResponse:
+        async for session in get_db_session():
+            try:
+                logger.info("Starting admin login")
+                user = await self.repository.get_user_by_email(session, payload.email)
+                if user is None or not verify_value(payload.password, user.password_hash):
+                    raise Custom_Exception(
+                        "Invalid email or password.", 
+                        ErrorCode.UNAUTHORIZED, 
+                        HttpStatusCode.UNAUTHORIZED
+                    )
+                await session.commit()
+                logger.info("Login completed")
+                return AdminLoginResponse(
+                    access_token=create_access_token(str(user.user_uuid), user.role),
                     expires_in=config.access_token_expire_minutes * 60,
                 )
             except Custom_Exception:
@@ -76,10 +101,12 @@ class AuthService:
             try:
                 logger.info("Starting logout")
                 customer = await self.repository.get_customer_by_refresh_token(session, hash_value(payload.refresh_token))
-                if customer is not None:
+                if customer is not None and not customer.is_revoked:
                     await self.repository.revoke_refresh_token(session, customer)
                     await session.commit()
                     logger.info("Logout completed")
+                else: 
+                    raise Custom_Exception("Invalid Refresh Token", ErrorCode.INVALID_AUTHORIZATION_HEADER, HttpStatusCode.UNAUTHORIZED)
                 return LogoutResponse(message="Logged out successfully.")
             except Custom_Exception:
                 await session.rollback()

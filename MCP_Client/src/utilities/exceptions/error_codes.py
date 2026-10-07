@@ -29,7 +29,7 @@ class ErrorCode:
     MISSING_ENV_VARS = "MissingEnvVarsErrorCode"
     
     # ==================== BUSINESS & APPLICATION ERRORS ====================
-    USER_NOT_FOUND = "UserNotFoundErrorCode"
+    DATA_NOT_FOUND = "DataNotFoundErrorCode"
     WORK_ITEM_NOT_FOUND = "WorkItemNotFoundErrorCode"
     ESCALATE_TO_LANE = "EscalateToLaneErrorCode"
     NO_ROWS_AFFECTED = "NoRowsAffectedErrorCode"
@@ -67,7 +67,7 @@ ErrorCodeStatus = {
     ErrorCode.MISSING_ENV_VARS: "TRAINING_ENV_001",
     
     # Business & Application Errors
-    ErrorCode.USER_NOT_FOUND: "TRAINING_002",
+    ErrorCode.DATA_NOT_FOUND: "TRAINING_002",
     ErrorCode.WORK_ITEM_NOT_FOUND: "TRAINING_008",
     ErrorCode.ESCALATE_TO_LANE: "TRAINING_001",
     ErrorCode.NO_ROWS_AFFECTED: "TRAINING_009",
