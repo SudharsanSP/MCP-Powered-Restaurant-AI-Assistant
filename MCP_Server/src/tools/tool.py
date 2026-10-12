@@ -170,10 +170,12 @@ async def update_order_tool(order_id: int, item_id: list[int], count: list[int],
             logger.info("Order update completed")
             return result
     except Custom_Exception:
-        await db_session.rollback()
+        if "db_session" in locals() and db_session is not None:
+            await db_session.rollback()
         raise
     except Exception:
-        await db_session.rollback()
+        if "db_session" in locals() and db_session is not None:
+            await db_session.rollback()
         logger.exception("Failed to update order")
         raise Custom_Exception("The order could not be updated.", ErrorCode.INTERNAL_SERVER_ERROR, HttpStatusCode.INTERNAL_SERVER_ERROR)
 

@@ -13,20 +13,18 @@ from utilities.logger import get_logger
 
 logger = get_logger(__name__)
 
-@staticmethod
-def custom_error_handler(error: Exception):
-    if isinstance(error, StructuredOutputValidationError):
-        logger.warning("Structured output validation failed")
-        return "Schema validation failed. Check filed constraints and retry"
-    elif isinstance(error, MultipleStructuredOutputsError):
-        logger.warning("Agent returned multiple structured outputs")
-        return "Multiple outputs were returned, pick the single format that is more relevant"
-    else:
-        logger.error(
-            "Agent returned an unexpected structured output error",
-            extra={"exception": str(error)},
-        )
-        return f"Unexpected error: {str(error)}"
+# def custom_error_handler(error: Exception):
+#     if isinstance(error, StructuredOutputValidationError):
+#         logger.warning("Structured output validation failed")
+#         return "Schema validation failed. Check filed constraints and retry"
+#     if isinstance(error, MultipleStructuredOutputsError):
+#         logger.warning("Agent returned multiple structured outputs")
+#         return "Multiple outputs were returned, pick the single format that is more relevant"
+#     logger.error(
+#         "Agent returned an unexpected structured output error",
+#         extra={"exception": str(error)},
+#     )
+#     return f"Unexpected error: {str(error)}"
 
 class Agent:
     def __init__(self, agent, mcp_client):

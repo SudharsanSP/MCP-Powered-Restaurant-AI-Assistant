@@ -78,7 +78,7 @@ async def create_item(
     service: AdminService = Depends(get_admin_service),
 ):
     try:
-        logger.info("Create Item endpoint requested", body.name)
+        logger.info("Create Item endpoint requested")
         result = await service.create_item(body.name, body.price)
         data = APIResponse(
             data=result,

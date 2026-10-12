@@ -10,6 +10,12 @@ class UserQuery(BaseModel):
 class HITLRequest(BaseModel):
     decision: Literal["approve", "reject"]
 
+class MenuList(BaseModel):
+    """Use this model for validation of keys in list of menu items dictionary"""
+    id: int  = Field(description= "Serial number for the list")
+    name: str = Field(description= "Name of each item")
+    price: float = Field(description= "Price of the item")
+
 class MenuResponse(BaseModel):
     """Consume this model if & only if you wanted to return a Menu to the user or get_menu_tool is called"""
     model_response: str = Field(description= "General response about the shop from the model")
@@ -27,12 +33,6 @@ class StatusResponse(BaseModel):
     model_response: str = Field(description= "General response from the model with ordered items only")
     order_id: int = Field(description= "Order id of the order")    
     order_status: dict = Field(description= "Status of the order")
-
-class MenuList(BaseModel):
-    """Use this model for validation of keys in list of menu items dictionary"""
-    id: int  = Field(description= "Serial number for the list")
-    name: str = Field(description= "Name of each item")
-    price: float = Field(description= "Price of the item")
 
 class GeneralResponse(BaseModel):
     """Consume this if no tool call required or the request and the response is very general or greeting messages"""
