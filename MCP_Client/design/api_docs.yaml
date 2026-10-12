@@ -1,0 +1,839 @@
+openapi: 3.1.0
+info:
+  title: MCP-Powered Restaurant AI Assistant API
+  version: 1.0.0
+  description: |
+    HTTP API exposed by the MCP client service. Protected operations require a
+    customer or admin bearer access token. MCP server tools are documented in
+    the `x-mcp-tools` section.
+servers:
+  - url: http://localhost:8080
+    description: Local MCP client API (default configured port)
+security:
+  - bearerAuth: []
+tags:
+  - name: Health
+  - name: Authentication
+  - name: Users
+  - name: Chat
+  - name: Admin
+paths:
+  /health/live:
+    get:
+      tags: [Health]
+      summary: Check that the API process is alive
+      security: []
+      responses:
+        "200":
+          description: API process is running
+          content:
+            application/json:
+              example:
+                status: ok
+  /health/ready:
+    get:
+      tags: [Health]
+      summary: Check that the API dependencies are ready
+      security: []
+      responses:
+        "200":
+          description: API and dependencies are ready
+          content:
+            application/json:
+              example:
+                status: ready
+        "503":
+          description: Application dependencies are not ready
+          content:
+            application/json:
+              example:
+                status: not_ready
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /coffee_shop_bot/api/v1/auth/customer/login:
+    post:
+      tags: [Authentication]
+      summary: Log in a customer
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+            example:
+              email: customer@example.com
+              password: "CoffeePass123"
+      responses:
+        "200":
+          description: Customer login successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIResponse"
+              example:
+                data:
+                  access_token: "<access-token>"
+                  refresh_token: "<refresh-token>"
+                  expires_in: 1800
+                errors: []
+                status_code: 200
+                request_id: "<request-id>"
+                message: Login successful
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /coffee_shop_bot/api/v1/auth/admin/login:
+    post:
+      tags: [Authentication]
+      summary: Log in an administrator
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+            example:
+              email: admin@example.com
+              password: "AdminPass123"
+      responses:
+        "200":
+          description: Administrator login successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIResponse"
+              example:
+                data:
+                  access_token: "<access-token>"
+                  expires_in: 1800
+                errors: []
+                status_code: 200
+                request_id: "<request-id>"
+                message: Login successful
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /coffee_shop_bot/api/v1/auth/refresh:
+    post:
+      tags: [Authentication]
+      summary: Issue a new customer access token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefreshRequest"
+            example:
+              refresh_token: "<refresh-token>"
+      responses:
+        "200":
+          description: Access token refreshed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIResponse"
+              example:
+                data:
+                  access_token: "<new-access-token>"
+                  expires_in: 1800
+                errors: []
+                status_code: 200
+                request_id: "<request-id>"
+                message: Token refreshed
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /coffee_shop_bot/api/v1/auth/logout:
+    post:
+      tags: [Authentication]
+      summary: Revoke a customer's refresh token
+      description: Requires a valid bearer access token.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefreshRequest"
+            example:
+              refresh_token: "<refresh-token>"
+      responses:
+        "200":
+          description: Logout successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIResponse"
+              example:
+                data:
+                  message: Logged out successfully.
+                errors: []
+                status_code: 200
+                request_id: "<request-id>"
+                message: Logout successful
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /coffee_shop_bot/api/v1/user:
+    post:
+      tags: [Users]
+      summary: Register a customer
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserCreateRequest"
+            example:
+              name: Alex Customer
+              phone_number: "9876543210"
+              email: alex@example.com
+              password: "CoffeePass123"
+      responses:
+        "201":
+          description: Customer created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIResponse"
+              example:
+                data:
+                  customer_uuid: "6c88cdb5-4a10-4f2f-8e34-6cbe7cc5da01"
+                  access_token: "<access-token>"
+                  refresh_token: "<refresh-token>"
+                  expires_in: 1800
+                errors: []
+                status_code: 201
+                request_id: "<request-id>"
+                message: User created successfully
+        "409":
+          description: Email or phone number is already registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIResponse"
+              example:
+                data: null
+                errors:
+                  - code: CONFLICT
+                    message: A user with this email or phone number already exists.
+                status_code: 409
+                request_id: "<request-id>"
+                message: A user with this email or phone number already exists.
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /coffee_shop_bot/api/v1/chat_bot/{thread_id}:
+    post:
+      tags: [Chat]
+      summary: Send a customer message to the assistant
+      parameters:
+        - $ref: "#/components/parameters/ThreadId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserQuery"
+            example:
+              user_query: "Show me the menu, please."
+      responses:
+        "200":
+          description: Assistant reply or an order-action approval prompt
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIResponse"
+              example:
+                data: "Here is our menu: espresso, latte, and cappuccino."
+                errors: []
+                status_code: 200
+                request_id: "<request-id>"
+                message: Success
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /coffee_shop_bot/api/v1/chat_bot/{thread_id}/approval:
+    post:
+      tags: [Chat]
+      summary: Approve or reject a pending assistant action
+      parameters:
+        - $ref: "#/components/parameters/ThreadId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HITLRequest"
+            examples:
+              approve:
+                value:
+                  decision: approve
+              reject:
+                value:
+                  decision: reject
+      responses:
+        "200":
+          description: Assistant action resumed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIResponse"
+              example:
+                data: "Your order has been placed successfully."
+                errors: []
+                status_code: 200
+                request_id: "<request-id>"
+                message: Success
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /coffee_shop_bot/api/v1/admin/orders:
+    get:
+      tags: [Admin]
+      summary: Retrieve orders
+      description: Requires a valid bearer token. Orders are returned newest first.
+      responses:
+        "200":
+          description: Orders retrieved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIResponse"
+              example:
+                data:
+                  - order_uuid: "125c11e4-b663-4d88-989c-341c3653d4d0"
+                    order_status: ordered
+                    total_amount: 10.5
+                    ordered_at: "2026-10-12T09:30:00"
+                    customer:
+                      customer_uuid: "6c88cdb5-4a10-4f2f-8e34-6cbe7cc5da01"
+                      name: Alex Customer
+                      phone_number: "+91 9876543210"
+                    items:
+                      - name: Cappuccino
+                        price: 5.25
+                        count: 2
+                errors: []
+                status_code: 200
+                request_id: "<request-id>"
+                message: Orders fetched successfully
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /coffee_shop_bot/api/v1/admin/orders/{order_id}/status:
+    patch:
+      tags: [Admin]
+      summary: Advance an order to its next status
+      description: Status moves from ordered to processing, then from processing to completed.
+      parameters:
+        - name: order_id
+          in: path
+          required: true
+          description: Order UUID
+          schema:
+            type: string
+            format: uuid
+          example: "125c11e4-b663-4d88-989c-341c3653d4d0"
+      responses:
+        "200":
+          description: Order status updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIResponse"
+              example:
+                data:
+                  order_uuid: "125c11e4-b663-4d88-989c-341c3653d4d0"
+                  order_status: processing
+                  updated_at: "2026-10-12T09:45:00"
+                errors: []
+                status_code: 200
+                request_id: "<request-id>"
+                message: Order status updated successfully
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /coffee_shop_bot/api/v1/admin/items:
+    post:
+      tags: [Admin]
+      summary: Create a menu item
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateItemRequest"
+            example:
+              name: Cappuccino
+              price: 5.25
+      responses:
+        "201":
+          description: Menu item created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIResponse"
+              example:
+                data:
+                  item_uuid: "15c202da-7069-4967-82be-6430964a62d7"
+                  name: Cappuccino
+                  price: 5.25
+                  created_at: "2026-10-12T09:30:00"
+                errors: []
+                status_code: 201
+                request_id: "<request-id>"
+                message: Item created successfully
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /coffee_shop_bot/api/v1/admin/items/{item_id}:
+    patch:
+      tags: [Admin]
+      summary: Update a menu item
+      parameters:
+        - $ref: "#/components/parameters/ItemId"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateItemRequest"
+            example:
+              name: Iced Cappuccino
+              price: 5.75
+      responses:
+        "200":
+          description: Menu item updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIResponse"
+              example:
+                data:
+                  item_uuid: "15c202da-7069-4967-82be-6430964a62d7"
+                  name: Iced Cappuccino
+                  price: 5.75
+                  is_active: true
+                  created_at: "2026-10-12T09:30:00"
+                errors: []
+                status_code: 200
+                request_id: "<request-id>"
+                message: Item updated successfully
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    delete:
+      tags: [Admin]
+      summary: Soft-delete a menu item
+      parameters:
+        - $ref: "#/components/parameters/ItemId"
+      responses:
+        "200":
+          description: Menu item deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIResponse"
+              example:
+                data: []
+                errors: []
+                status_code: 200
+                request_id: "<request-id>"
+                message: Item deleted successfully
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    ThreadId:
+      name: thread_id
+      in: path
+      required: true
+      description: UUID identifying the assistant conversation
+      schema:
+        type: string
+        format: uuid
+      example: "c1234567-89ab-4cde-8f01-23456789abcd"
+    ItemId:
+      name: item_id
+      in: path
+      required: true
+      description: Menu item UUID
+      schema:
+        type: string
+        format: uuid
+      example: "15c202da-7069-4967-82be-6430964a62d7"
+  schemas:
+    APIResponse:
+      type: object
+      required: [data, errors, status_code, request_id, message]
+      properties:
+        data:
+          description: Operation result; handlers may return null or an empty array for errors or empty results.
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/APIError"
+        status_code:
+          type: integer
+        request_id:
+          type: [string, "null"]
+        message:
+          type: string
+    APIError:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          minLength: 3
+          maxLength: 320
+        password:
+          type: string
+          minLength: 8
+          maxLength: 128
+    RefreshRequest:
+      type: object
+      required: [refresh_token]
+      properties:
+        refresh_token:
+          type: string
+          minLength: 32
+          maxLength: 256
+    UserCreateRequest:
+      type: object
+      required: [name, phone_number, email, password]
+      properties:
+        name:
+          type: string
+          minLength: 2
+          maxLength: 100
+        phone_number:
+          type: string
+          description: Exactly 10 numeric digits; the service stores it with the +91 prefix.
+          pattern: "^[0-9]{10}$"
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+          maxLength: 128
+    UserQuery:
+      type: object
+      required: [user_query]
+      properties:
+        user_query:
+          type: string
+          minLength: 1
+          maxLength: 1000
+    HITLRequest:
+      type: object
+      required: [decision]
+      properties:
+        decision:
+          type: string
+          enum: [approve, reject]
+    CreateItemRequest:
+      type: object
+      required: [name, price]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        price:
+          type: number
+          exclusiveMinimum: 0
+    UpdateItemRequest:
+      type: object
+      properties:
+        name:
+          type: [string, "null"]
+          minLength: 1
+          maxLength: 100
+        price:
+          type: [number, "null"]
+          exclusiveMinimum: 0
+  responses:
+    BadRequest:
+      description: Request cannot be applied
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/APIResponse"
+          example:
+            data: []
+            errors:
+              - code: VALIDATION_ERROR
+                message: The requested operation is not valid.
+            status_code: 400
+            request_id: "<request-id>"
+            message: The requested operation is not valid.
+    Unauthorized:
+      description: Authentication failed or credentials are invalid
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/APIResponse"
+          example:
+            data: null
+            errors:
+              - code: UnauthorizedErrorCode
+                message: Authentication is required.
+            status_code: 401
+            request_id: "<request-id>"
+            message: Authentication is required.
+    Forbidden:
+      description: The authenticated identity is missing or is not authorized for this resource
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/APIResponse"
+          example:
+            data: null
+            errors:
+              - code: UnauthorizedErrorCode
+                message: You are not authorized to access this resource.
+            status_code: 403
+            request_id: "<request-id>"
+            message: You are not authorized to access this resource.
+    InternalServerError:
+      description: An unexpected internal or dependency error prevented the request from completing
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/APIResponse"
+          example:
+            data: null
+            errors:
+              - code: InternalServerErrorCode
+                message: The request could not be completed.
+            status_code: 500
+            request_id: "<request-id>"
+            message: The request could not be completed.
+    NotFound:
+      description: Requested resource was not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/APIResponse"
+          example:
+            data: []
+            errors:
+              - code: DATA_NOT_FOUND
+                message: Item not found.
+            status_code: 404
+            request_id: "<request-id>"
+            message: Item not found.
+    ValidationError:
+      description: Request body or path parameter validation failed
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/APIResponse"
+          example:
+            data: []
+            errors:
+              - code: VALIDATION_ERROR
+                message: "user_query: String should have at least 1 character"
+            status_code: 422
+            request_id: "<request-id>"
+            message: "user_query: String should have at least 1 character"
+x-mcp-tools:
+  transport: streamable-http
+  description: |
+    Tools exposed by the MCP server and discovered/called by the MCP client.
+    The examples below show tool arguments and the tool's returned data; the
+    MCP protocol wraps tool results in its standard CallToolResult envelope.
+  tools:
+    get_menu_tool:
+      description: Return active menu items with numeric item IDs and prices.
+      inputSchema:
+        type: object
+        properties: {}
+      exampleRequest: {}
+      exampleResponse:
+        items:
+          - id: 1
+            name: Cappuccino
+            price: 5.25
+    get_shop_details_tool:
+      description: Return the coffee shop details configured on the MCP server.
+      inputSchema:
+        type: object
+        properties: {}
+      exampleRequest: {}
+      exampleResponse: "here's the details of the coffee shop <configured shop details>"
+    place_order_tool:
+      description: |
+        Place an order after customer confirmation. item_id and count arrays
+        must have the same nonzero length; counts must be positive and match
+        item IDs by position.
+      inputSchema:
+        type: object
+        required: [item_id, count, customer_id]
+        properties:
+          item_id:
+            type: array
+            items:
+              type: integer
+          count:
+            type: array
+            items:
+              type: integer
+              minimum: 1
+          customer_id:
+            type: string
+            format: uuid
+      exampleRequest:
+        item_id: [1]
+        count: [2]
+        customer_id: "6c88cdb5-4a10-4f2f-8e34-6cbe7cc5da01"
+      exampleResponse:
+        order_id: 42
+        total_amount: 10.5
+        message: Order placed successfully for customer_id 7
+    get_order_tool:
+      description: Return a customer's selected order, or the last five order summaries if order_id is omitted.
+      inputSchema:
+        type: object
+        required: [customer_id]
+        properties:
+          customer_id:
+            type: string
+            format: uuid
+          order_id:
+            type: integer
+      exampleRequest:
+        customer_id: "6c88cdb5-4a10-4f2f-8e34-6cbe7cc5da01"
+        order_id: 42
+      exampleResponse:
+        order_id: 42
+        order_status: ordered
+        items:
+          - id: 1
+            name: Cappuccino
+            count: 2
+        total_amount: 10.5
+    update_order_tool:
+      description: |
+        Replace items in an order that is still in ordered status after customer
+        confirmation. item_id and count arrays must have the same nonzero length;
+        counts must be positive and match item IDs by position.
+      inputSchema:
+        type: object
+        required: [order_id, item_id, count, customer_id]
+        properties:
+          order_id:
+            type: integer
+          item_id:
+            type: array
+            items:
+              type: integer
+          count:
+            type: array
+            items:
+              type: integer
+              minimum: 1
+          customer_id:
+            type: string
+            format: uuid
+      exampleRequest:
+        order_id: 42
+        item_id: [1, 2]
+        count: [1, 2]
+        customer_id: "6c88cdb5-4a10-4f2f-8e34-6cbe7cc5da01"
+      exampleResponse:
+        order_id: 42
+        total_amount: 15.75
+        message: Order updated successfully.
+    cancel_order_tool:
+      description: Cancel an order that is still in ordered status after customer confirmation.
+      inputSchema:
+        type: object
+        required: [order_id, customer_id]
+        properties:
+          order_id:
+            type: integer
+          customer_id:
+            type: string
+            format: uuid
+      exampleRequest:
+        order_id: 42
+        customer_id: "6c88cdb5-4a10-4f2f-8e34-6cbe7cc5da01"
+      exampleResponse:
+        order_id: 42
+        message: Order cancelled successfully.
