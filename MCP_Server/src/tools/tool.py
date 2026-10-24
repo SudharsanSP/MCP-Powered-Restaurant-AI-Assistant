@@ -2,7 +2,10 @@ from pathlib import Path
 from typing import Optional
 from uuid import UUID
 
-from repositories.schema.coffee_shop_models import OrderStatus
+from sqlalchemy.future import select
+from sqlalchemy import func, desc
+
+from repositories.schema.coffee_shop_models import OrderStatus, Order, Order_Item, Item, Customer
 from repositories.database import get_db_session
 from repositories.repository import ChatBotRepository
 from routers.router import router
@@ -227,3 +230,191 @@ async def cancel_order_tool(order_id: int, customer_id: UUID):
     except Exception:
         logger.exception("Failed to cancel order")
         raise Custom_Exception("The order could not be cancelled.", ErrorCode.INTERNAL_SERVER_ERROR, HttpStatusCode.INTERNAL_SERVER_ERROR)
+
+
+# ---------------------------------------------------------------------------
+# Manager / Admin tools — used exclusively by the /agent autonomous endpoint
+# ---------------------------------------------------------------------------
+
+@router.tool
+@with_async_request_id
+async def get_all_orders_tool(limit: int = 100):
+    """Retrieve all orders across every customer for management reporting.
+    Returns a list of orders with order_id, customer name, item names,
+    quantities, total_amount, order_status, and created_at.
+    Use when the manager requests a sales report, order summary, or any
+    analytics that requires a global view of all orders."""
+    try:
+        logger.info("Fetching all orders for manager report")
+        async for db_session in get_db_session():
+            result = await db_session.execute(
+                select(
+                    Order.order_id,
+                    Order.total_amount,
+                    Order.order_status,
+                    Order.created_at,
+                    Customer.name.label("customer_name"),
+                )
+                .join(Customer, Customer.customer_id == Order.customer_id)
+                .where(Order.is_active.is_(True))
+                .order_by(desc(Order.created_at))
+                .limit(limit)
+            )
+            rows = result.all()
+
+            orders = []
+            for row in rows:
+                items_result = await db_session.execute(
+                    select(Item.name, Order_Item.item_count)
+                    .join(Order_Item, Order_Item.item_id == Item.item_id)
+                    .where(
+                        Order_Item.order_id == row.order_id,
+                        Order_Item.is_active.is_(True),
+                        Item.is_active.is_(True),
+                    )
+                )
+                item_list = [
+                    {"name": name, "quantity": count}
+                    for name, count in items_result.all()
+                ]
+                orders.append(
+                    {
+                        "order_id": row.order_id,
+                        "customer_name": row.customer_name,
+                        "items": item_list,
+                        "total_amount": row.total_amount,
+                        "order_status": row.order_status.value
+                        if hasattr(row.order_status, "value")
+                        else str(row.order_status),
+                        "created_at": row.created_at.isoformat()
+                        if row.created_at
+                        else None,
+                    }
+                )
+            logger.info("All orders fetched successfully")
+            return {"orders": orders, "total_count": len(orders)}
+    except Custom_Exception:
+        raise
+    except Exception:
+        logger.exception("Failed to fetch all orders")
+        raise Custom_Exception(
+            "All orders could not be retrieved.",
+            ErrorCode.INTERNAL_SERVER_ERROR,
+            HttpStatusCode.INTERNAL_SERVER_ERROR,
+        )
+
+
+@router.tool
+@with_async_request_id
+async def get_top_items_tool(limit: int = 5):
+    """Analyse order history to rank menu items by total quantity ordered.
+    Returns each item's name, total units sold, number of distinct orders
+    it appeared in, and its revenue contribution.
+    Use for sales reports, menu review documents, and expansion proposals."""
+    try:
+        logger.info("Calculating top selling items")
+        async for db_session in get_db_session():
+            result = await db_session.execute(
+                select(
+                    Item.item_id,
+                    Item.name,
+                    Item.price,
+                    func.sum(Order_Item.item_count).label("total_units_sold"),
+                    func.count(Order_Item.order_id.distinct()).label("order_count"),
+                )
+                .join(Order_Item, Order_Item.item_id == Item.item_id)
+                .join(Order, Order.order_id == Order_Item.order_id)
+                .where(
+                    Item.is_active.is_(True),
+                    Order_Item.is_active.is_(True),
+                    Order.is_active.is_(True),
+                )
+                .group_by(Item.item_id, Item.name, Item.price)
+                .order_by(desc("total_units_sold"))
+                .limit(limit)
+            )
+            rows = result.all()
+            ranked = [
+                {
+                    "rank": idx + 1,
+                    "item_id": row.item_id,
+                    "name": row.name,
+                    "price": row.price,
+                    "total_units_sold": int(row.total_units_sold),
+                    "order_count": int(row.order_count),
+                    "revenue_contribution": round(row.price * int(row.total_units_sold), 2),
+                }
+                for idx, row in enumerate(rows)
+            ]
+            logger.info("Top items calculated successfully")
+            return {"top_items": ranked}
+    except Custom_Exception:
+        raise
+    except Exception:
+        logger.exception("Failed to calculate top items")
+        raise Custom_Exception(
+            "Top items could not be retrieved.",
+            ErrorCode.INTERNAL_SERVER_ERROR,
+            HttpStatusCode.INTERNAL_SERVER_ERROR,
+        )
+
+
+@router.tool
+@with_async_request_id
+async def get_order_stats_tool():
+    """Return aggregate order statistics for management reporting.
+    Provides: total orders, total revenue, average order value,
+    and a breakdown of order count and revenue by each order status
+    (ordered, processing, pending, completed).
+    Use as the quick-stats step in any sales or performance report."""
+    try:
+        logger.info("Computing order statistics")
+        async for db_session in get_db_session():
+            # Overall aggregates
+            overall = await db_session.execute(
+                select(
+                    func.count(Order.order_id).label("total_orders"),
+                    func.coalesce(func.sum(Order.total_amount), 0).label("total_revenue"),
+                    func.coalesce(func.avg(Order.total_amount), 0).label("avg_order_value"),
+                ).where(Order.is_active.is_(True))
+            )
+            overall_row = overall.one()
+
+            # Per-status breakdown
+            status_result = await db_session.execute(
+                select(
+                    Order.order_status,
+                    func.count(Order.order_id).label("count"),
+                    func.coalesce(func.sum(Order.total_amount), 0).label("revenue"),
+                )
+                .where(Order.is_active.is_(True))
+                .group_by(Order.order_status)
+            )
+            status_rows = status_result.all()
+            status_breakdown = [
+                {
+                    "status": row.order_status.value
+                    if hasattr(row.order_status, "value")
+                    else str(row.order_status),
+                    "order_count": int(row.count),
+                    "revenue": round(float(row.revenue), 2),
+                }
+                for row in status_rows
+            ]
+
+            logger.info("Order statistics computed successfully")
+            return {
+                "total_orders": int(overall_row.total_orders),
+                "total_revenue": round(float(overall_row.total_revenue), 2),
+                "average_order_value": round(float(overall_row.avg_order_value), 2),
+                "status_breakdown": status_breakdown,
+            }
+    except Custom_Exception:
+        raise
+    except Exception:
+        logger.exception("Failed to compute order statistics")
+        raise Custom_Exception(
+            "Order statistics could not be retrieved.",
+            ErrorCode.INTERNAL_SERVER_ERROR,
+            HttpStatusCode.INTERNAL_SERVER_ERROR,
+        )

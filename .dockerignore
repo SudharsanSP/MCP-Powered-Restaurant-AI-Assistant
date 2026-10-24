@@ -1,0 +1,14 @@
+.git
+.venv
+venv/
+**/__pycache__
+**/*.py[cod]
+.pytest_cache
+.coverage
+htmlcov_client
+htmlcov_server
+.env
+.env.*
+MCP_Client/tests
+MCP_Server
+src

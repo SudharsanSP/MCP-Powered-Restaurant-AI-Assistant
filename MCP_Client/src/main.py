@@ -10,6 +10,7 @@ from routers.default_router import router as default_router
 from routers.auth_router import router as auth_router
 from routers.user_router import router as user_router
 from routers.admin_router import router as admin_router
+from routers.agent_router import router as autonomous_router
 from models.APIresponse import APIResponse, Error
 from utilities.exceptions.custom_exception import Custom_Exception
 from utilities.exceptions.error_codes import ErrorCode
@@ -59,6 +60,7 @@ app.include_router(auth_router)
 app.include_router(user_router)
 app.include_router(agent_router)
 app.include_router(admin_router)
+app.include_router(autonomous_router)
 
 # EXCEPTION HANDLERS 
 @app.exception_handler(Custom_Exception)

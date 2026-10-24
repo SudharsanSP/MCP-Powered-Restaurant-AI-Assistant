@@ -7,6 +7,7 @@ from services.auth_service import AuthService
 from services.user_service import UserService
 from services.admin_service import AdminService
 from agents.agent import Agent
+from agents.autonomous_agent import ManagerAgent
 from client.client import (
     create_chat_model,
     create_checkpointer,
@@ -14,6 +15,7 @@ from client.client import (
 )
 from repositories.database import get_db_session
 from services.service import ChatBotService
+from services.autonomous_service import AutonomousAgentService
 from settings import config
 from utilities.logger import get_logger
 
@@ -31,6 +33,7 @@ class ApplicationDependencies:
         self.checkpointer = None
         self.agent = None
         self.chatbot_service = None
+        self.autonomous_service = None
 
     async def initialize(self) -> None:
         logger.info("Initializing shared application dependencies")
@@ -53,6 +56,22 @@ class ApplicationDependencies:
             self.chatbot_service = ChatBotService(
                 Agent(self.agent, self.mcp_client)
             )
+
+            # ── Autonomous manager agent ──────────────────────────────────
+            logger.info("Initializing autonomous manager agent")
+            # Phase 1 data-collection agent: moderate tokens (tool calls only)
+            manager_model = create_chat_model(1000, config.temperature)
+            manager_summary_model = create_chat_model(300, 0.2)
+            # Phase 2 composition model: higher tokens to write sections JSON
+            composition_model = create_chat_model(4000, 0.4)
+            manager_agent = await ManagerAgent.create(
+                model=manager_model,
+                summary_model=manager_summary_model,
+                composition_model=composition_model,
+                mcp_client=self.mcp_client,
+            )
+            self.autonomous_service = AutonomousAgentService(manager_agent)
+
             logger.info("Shared application dependencies initialized successfully")
         except Exception:
             logger.exception("Failed to initialize shared application dependencies")
@@ -78,6 +97,11 @@ def get_chatbot_service(request: Request):
     dependencies: ApplicationDependencies = request.app.state.dependencies
     logger.info("Resolved shared ChatBotService dependency")
     return dependencies.chatbot_service
+
+def get_autonomous_service(request: Request):
+    dependencies: ApplicationDependencies = request.app.state.dependencies
+    logger.info("Resolved shared AutonomousAgentService dependency")
+    return service.autonomous_service
 
 def get_auth_service():
     return AuthService()

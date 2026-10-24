@@ -31,5 +31,6 @@ htmlcov_server
 .venv/
 
 CODEBASE_ANALYSIS.md
-
-
+PROJECT_STRUCTURE_AND_PYTHON_PRACTICES.md
+AGENT_API_DESIGN.md
+Fluid-AI_task.pdf

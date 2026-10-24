@@ -1,0 +1,30 @@
+Shop Name: Brew Buddy Coffee Shop
+Tagline: Your perfect cup, every time.
+
+Address: 42 Roast Lane, Beanville, CA 94102, United States
+Phone: +1 (415) 555-0192
+Email: hello@brewbuddy.com
+Website: www.brewbuddy.com
+
+Opening Hours:
+  Monday – Friday : 7:00 AM – 9:00 PM
+  Saturday        : 8:00 AM – 10:00 PM
+  Sunday          : 9:00 AM – 8:00 PM
+
+Manager: Alex Rivera
+Contact Person for Queries: Sarah Thompson (Operations Lead)
+Contact Email: operations@brewbuddy.com
+Contact Phone: +1 (415) 555-0199
+
+About Us:
+Brew Buddy Coffee Shop is a cozy, community-focused café specialising in
+hand-crafted espresso beverages, single-origin pour-overs, and freshly baked
+pastries. We source our beans from sustainable farms across Ethiopia, Colombia,
+and Guatemala, roasted locally every week to ensure peak freshness.
+
+Services:
+  - Dine-in, Takeaway, and Curbside Pickup
+  - Corporate catering (minimum 10 persons, 24-hour advance notice required)
+  - Loyalty programme: Brew Buddy Rewards Card
+  - Free Wi-Fi for all customers
+

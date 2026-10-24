@@ -4,6 +4,39 @@ from typing import Optional, Literal
 
 from pydantic import BaseModel, Field
 
+
+
+class AgentRequest(BaseModel):
+    """Request body for POST /agent."""
+    request: str = Field(
+        min_length=5,
+        max_length=2000,
+        description="Natural language business request for the manager agent.",
+    )
+
+
+class TaskItem(BaseModel):
+    """A single step in the autonomous execution plan."""
+    step: int = Field(description="Step number (1-based).")
+    description: str = Field(description="What this step does.")
+    tool: Optional[str] = Field(default=None, description="MCP tool called for this step, if any.")
+    status: Literal["pending", "completed", "failed"] = Field(
+        default="pending",
+        description="Execution status of this step.",
+    )
+
+
+class AgentResponse(BaseModel):
+    """Response body returned by POST /agent."""
+    task_list: list[TaskItem] = Field(description="Ordered list of tasks the agent planned and executed.")
+    assumptions: list[str] = Field(
+        default_factory=list,
+        description="Assumptions the agent made when the request was ambiguous.",
+    )
+    summary: str = Field(description="Human-readable summary of what the agent produced.")
+    document_filename: str = Field(description="Filename of the generated .docx document.")
+
+
 class UserQuery(BaseModel):
     user_query: str = Field(min_length=1, max_length=1000)
 

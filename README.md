@@ -77,11 +77,40 @@ The server creates its database tables at startup and runs FastMCP over Streamab
 Open a second terminal from the repository root:
 
 ```powershell
-cd MCP_Client
-..\.venv\Scripts\python.exe src\main.py
+uv run --project . --directory MCP_Client python src\main.py
 ```
 
 The FastAPI client listens on `PORT` (default `8080`). At startup it initializes the chat and summary Gemini models, connects to the MCP server and loads tools, initializes the PostgreSQL checkpointer, and creates the LangGraph agent. Startup depends on these services being configured and available.
+
+### Build and run the MCP Client with Docker
+
+Docker packages the client and its Python dependencies into an image. The image contains **only the client**; PostgreSQL and the MCP server must be running separately and reachable from the container.
+
+1. Start Docker Desktop and wait until its engine is running.
+2. From the repository root, create `.env` from `.env.sample` if you have not already, and set the database credentials, `GOOGLE_API_KEY`, `JWT_SECRET`, and `MCP_SERVER_URL`.
+3. When PostgreSQL and the MCP server are running directly on your Windows host, set their host to `host.docker.internal` in `.env`, for example:
+
+   ```env
+   DB_HOST=host.docker.internal
+   MCP_SERVER_URL=http://host.docker.internal:8081/mcp
+   HOST=0.0.0.0
+   PORT=8080
+   ```
+
+   If those services are in Docker containers instead, put them on the same Docker network as this client and use their container/service names as the host.
+4. Build the image from the repository root:
+
+   ```powershell
+   docker build -t coffeebot-client .
+   ```
+
+5. Run the client:
+
+   ```powershell
+   docker run --rm --name coffeebot-client -p 8080:8080 --env-file .env coffeebot-client
+   ```
+
+   The client is then available at `http://localhost:8080`. Press `Ctrl+C` to stop it. `-p 8080:8080` forwards port 8080 from your computer to the container, while `--env-file .env` passes configuration at runtime without copying secrets into the image.
 
 ## HTTP API
 
